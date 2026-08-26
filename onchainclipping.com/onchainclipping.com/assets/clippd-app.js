@@ -245,8 +245,9 @@
     const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
     const plats = c.platforms && c.platforms.length ? c.platforms : PLATFORMS;
     const live = c.status === "live" || c.demo;
+    const href = !live && c.status === "awaiting_deposit" ? "/launch/" + c.id : "/campaigns/" + c.id;
     return `
-      <a class="glass-card glass-card-hover camp-card p-5" href="/campaigns/${esc(c.id)}" data-nav>
+      <a class="glass-card glass-card-hover camp-card p-5" href="${esc(href)}" data-nav>
         <div style="display:flex;align-items:flex-start;gap:.75rem">
           ${tokenMark(c, 44)}
           <div style="min-width:0;flex:1">
@@ -294,18 +295,19 @@
     } catch (e) {
       err = e.message;
     }
-    const live = campaigns.filter((c) => c.status === "live" || c.demo);
-    const pool = live.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
-    const paid = live.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
-    const clips = live.reduce((s, c) => s + ((c.submissions && c.submissions.length) || 0), 0);
+    const shown = campaigns.filter((c) => c.demo || c.status === "live" || c.status === "awaiting_deposit");
+    const live = shown.filter((c) => c.status === "live" || c.demo);
+    const pool = shown.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
+    const paid = shown.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
+    const clips = shown.reduce((s, c) => s + ((c.submissions && c.submissions.length) || 0), 0);
     paint(
       "campaigns",
       `
       <div class="page-badge"><span class="pulse"></span> Open marketplace · Paid in SOL from campaign vaults</div>
       <div class="page-head">
         <div>
-          <h1 class="page-title">Active Campaigns</h1>
-          <p class="page-sub">Live, funded campaigns only. Unfunded vaults stay off the board until the SOL lands.</p>
+          <h1 class="page-title">Campaigns</h1>
+          <p class="page-sub">Every campaign stays here. Unfunded vaults wait for SOL. Funded ones are live.</p>
         </div>
         <a class="btn-pill go primary" href="/launch" data-nav>Launch a campaign</a>
       </div>
@@ -313,13 +315,13 @@
         <div class="stat-cell"><div class="label">Total vault</div><div class="stat accent">${usd(pool)}</div></div>
         <div class="stat-cell"><div class="label">Paid out</div><div class="stat">${usd(paid)}</div></div>
         <div class="stat-cell"><div class="label">Clips submitted</div><div class="stat">${clips}</div></div>
-        <div class="stat-cell"><div class="label">Campaigns live</div><div class="stat">${live.length}</div></div>
+        <div class="stat-cell"><div class="label">Campaigns</div><div class="stat">${shown.length}</div></div>
       </div>
       ${err ? `<p class="err">${esc(err)}</p>` : ""}
       ${
-        !live.length
-          ? `<div class="empty card" style="margin-top:2rem">No live campaigns yet. Fund a vault to go live.</div>`
-          : `<div class="camp-grid">${live.map(campaignCard).join("")}</div>`
+        !shown.length
+          ? `<div class="empty card" style="margin-top:2rem">No campaigns yet. Launch one to get a vault.</div>`
+          : `<div class="camp-grid">${shown.map(campaignCard).join("")}</div>`
       }`
     );
     bindCopyCa();

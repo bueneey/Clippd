@@ -12,7 +12,7 @@ import uuid
 import base64
 import hashlib
 import hmac
-import secrets
+import shutil
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -85,14 +85,42 @@ def ensure_admin_password():
 
 ensure_admin_password()
 
-DATA_DIR = os.path.join(ROOT, "data")
+BUNDLED_DATA = os.path.join(ROOT, "data")
+
+
+def resolve_data_dir():
+    env = (os.environ.get("DATA_DIR") or "").strip()
+    if env:
+        return env
+    if on_railway():
+        return "/data"
+    return BUNDLED_DATA
+
+
+def init_persistent_data():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    blanks = {"campaigns.json": [], "users.json": {}, "vault-keys.json": []}
+    for name, empty in blanks.items():
+        dest = os.path.join(DATA_DIR, name)
+        if os.path.exists(dest):
+            continue
+        src = os.path.join(BUNDLED_DATA, name)
+        if os.path.abspath(src) != os.path.abspath(dest) and os.path.exists(src):
+            shutil.copy(src, dest)
+        else:
+            with open(dest, "w") as f:
+                json.dump(empty, f, indent=2)
+                f.write("\n")
+
+
+DATA_DIR = resolve_data_dir()
 CAMPAIGNS_PATH = os.path.join(DATA_DIR, "campaigns.json")
 USERS_PATH = os.path.join(DATA_DIR, "users.json")
 KEYS_PATH = os.path.join(DATA_DIR, "vault-keys.json")
 KEYS_TXT = os.path.join(DATA_DIR, "VAULT_KEYS.txt")
 os.chdir(ROOT)
 try:
-    os.makedirs(DATA_DIR, exist_ok=True)
+    init_persistent_data()
 except OSError as e:
     print("data dir not writable: %s" % e, flush=True)
 
@@ -292,8 +320,11 @@ def write_keys_txt(keys, campaigns):
                 "",
             ]
         )
-    with open(KEYS_TXT, "w") as f:
-        f.write("\n".join(lines).rstrip() + "\n")
+    try:
+        with open(KEYS_TXT, "w") as f:
+            f.write("\n".join(lines).rstrip() + "\n")
+    except OSError as e:
+        print("vault keys write failed: %s" % e, flush=True)
 
 
 def generate_wallet():
@@ -722,7 +753,14 @@ class Handler(SimpleHTTPRequestHandler):
         qs = parse_qs(parsed.query)
 
         if path in ("/health", "/healthz", "/health/", "/healthz/"):
-            self._json(200, {"ok": True})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "data_dir": DATA_DIR,
+                    "campaigns": len([c for c in stored_campaigns() if c.get("id") != DEMO_ID and not c.get("demo")]),
+                },
+            )
             return
 
         if path == "/api/quote":
@@ -751,7 +789,11 @@ class Handler(SimpleHTTPRequestHandler):
                 if changed:
                     save_json(CAMPAIGNS_PATH, campaigns)
                     write_keys_txt(load_json(KEYS_PATH, []), campaigns)
-                out = [public_campaign(c) for c in list_campaigns() if c.get("status") == "live" or c.get("demo")]
+                out = [
+                    public_campaign(c)
+                    for c in list_campaigns()
+                    if c.get("demo") or c.get("id") == DEMO_ID or c.get("status") in ("live", "awaiting_deposit")
+                ]
             self._json(200, {"campaigns": out})
             return
 
@@ -1085,7 +1127,7 @@ if __name__ == "__main__":
     print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
     print("env PORT            %s" % (os.environ.get("PORT") or "(not set)"), flush=True)
-    print("vault keys          %s" % KEYS_TXT, flush=True)
+    print("data dir            %s" % DATA_DIR, flush=True)
     print("ops vaults          %s/ops" % site, flush=True)
     if not operator_keypair():
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)

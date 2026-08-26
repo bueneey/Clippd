@@ -3,4 +3,6 @@ builder = "RAILPACK"
 
 [deploy]
 startCommand = "bash start.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

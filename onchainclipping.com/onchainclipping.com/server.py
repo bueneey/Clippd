@@ -48,11 +48,17 @@ load_env(os.path.join(ROOT, ".env"))
 def ensure_admin_password():
     if (os.environ.get("ADMIN_PASSWORD") or "").strip():
         return
+    # Railway / read-only images cannot append .env. Ops stays locked until ADMIN_PASSWORD is set in host env.
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_ENVIRONMENT_ID"):
+        return
     pw = "clippd-" + secrets.token_urlsafe(10)
     os.environ["ADMIN_PASSWORD"] = pw
     env_path = os.path.join(ROOT, ".env")
-    with open(env_path, "a") as f:
-        f.write("\nADMIN_PASSWORD=%s\n" % pw)
+    try:
+        with open(env_path, "a") as f:
+            f.write("\nADMIN_PASSWORD=%s\n" % pw)
+    except OSError:
+        pass
 
 
 ensure_admin_password()
@@ -63,7 +69,10 @@ USERS_PATH = os.path.join(DATA_DIR, "users.json")
 KEYS_PATH = os.path.join(DATA_DIR, "vault-keys.json")
 KEYS_TXT = os.path.join(DATA_DIR, "VAULT_KEYS.txt")
 os.chdir(ROOT)
-os.makedirs(DATA_DIR, exist_ok=True)
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except OSError as e:
+    print("data dir not writable: %s" % e, flush=True)
 
 MIN_BUDGET_USD = float(os.environ.get("MIN_BUDGET_USD") or 1)
 LOCK = threading.Lock()
@@ -690,6 +699,10 @@ class Handler(SimpleHTTPRequestHandler):
         path = parsed.path
         qs = parse_qs(parsed.query)
 
+        if path in ("/health", "/healthz", "/health/", "/healthz/"):
+            self._json(200, {"ok": True})
+            return
+
         if path == "/api/quote":
             try:
                 usd = float((qs.get("usd") or ["10"])[0])
@@ -961,26 +974,42 @@ class Handler(SimpleHTTPRequestHandler):
         if not ops_authed(self):
             return self._json(401, {"error": "Unlock required"})
         with LOCK:
-            campaigns_by_id = {c.get("id"): c for c in stored_campaigns()}
+            campaigns = stored_campaigns()
+            campaigns_by_id = {c.get("id"): c for c in campaigns}
+            keys = load_json(KEYS_PATH, [])
+            keys_by_id = {k.get("campaign_id"): k for k in keys if k.get("campaign_id")}
             vaults = []
-            for row in load_json(KEYS_PATH, []):
-                c = campaigns_by_id.get(row.get("campaign_id")) or {}
-                if c.get("demo") or row.get("campaign_id") == DEMO_ID:
+            seen = set()
+
+            def row_for(cid, c, k):
+                return {
+                    "campaign_id": cid,
+                    "ticker": (c or {}).get("ticker") or (k or {}).get("ticker"),
+                    "name": (c or {}).get("name") or (k or {}).get("name"),
+                    "status": (c or {}).get("status") or "",
+                    "address": (k or {}).get("address") or (c or {}).get("vault_address"),
+                    "secret_base58": (k or {}).get("secret_base58"),
+                    "created_at": (k or {}).get("created_at") or (c or {}).get("created_at"),
+                    "budget_usd": (c or {}).get("budget_usd") or (k or {}).get("budget_usd"),
+                    "vault_onchain": (c or {}).get("vault_onchain"),
+                }
+
+            for c in campaigns:
+                cid = c.get("id")
+                if not cid or c.get("demo") or cid == DEMO_ID:
                     continue
-                vaults.append(
-                    {
-                        "campaign_id": row.get("campaign_id"),
-                        "ticker": c.get("ticker") or row.get("ticker"),
-                        "name": c.get("name") or row.get("name"),
-                        "status": c.get("status") or "",
-                        "address": row.get("address"),
-                        "secret_base58": row.get("secret_base58"),
-                        "created_at": row.get("created_at") or c.get("created_at"),
-                        "budget_usd": c.get("budget_usd") or row.get("budget_usd"),
-                        "vault_onchain": c.get("vault_onchain"),
-                    }
-                )
-        return self._json(200, {"vaults": vaults})
+                k = keys_by_id.get(cid)
+                if not k and not c.get("vault_address"):
+                    continue
+                seen.add(cid)
+                vaults.append(row_for(cid, c, k))
+            for k in keys:
+                cid = k.get("campaign_id")
+                if not cid or cid in seen or cid == DEMO_ID:
+                    continue
+                vaults.append(row_for(cid, campaigns_by_id.get(cid) or {}, k))
+            vaults.sort(key=lambda v: (0 if v.get("status") == "live" else 1, v.get("created_at") or ""), reverse=False)
+        return self._json(200, {"host": self.headers.get("Host") or "", "site": os.environ.get("SITE_URL") or "", "vaults": vaults})
 
     def _update_user(self):
         body = self._read_json()
@@ -1030,6 +1059,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT") or 5173)
     host = os.environ.get("HOST") or "0.0.0.0"
     site = (os.environ.get("SITE_URL") or "https://getclippd.fun").rstrip("/")
+    ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer((host, port), Handler)
     print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
@@ -1037,4 +1067,6 @@ if __name__ == "__main__":
     print("ops vaults          %s/ops" % site, flush=True)
     if not operator_keypair():
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)
+    if not admin_password():
+        print("ADMIN_PASSWORD      not set — /ops stays locked", flush=True)
     server.serve_forever()

@@ -843,6 +843,7 @@
             <div class="mk-kicker">Operator</div>
             <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
             <p class="page-sub">Private keys for every campaign. Password only. This page is not in the public nav.</p>
+            <p class="meta">This list is only the vaults stored on <strong>${esc(location.host)}</strong>. Campaigns launched on another host are a different list.</p>
           </div>
         </div>
         <form id="ops-form" class="card" style="max-width:28rem">
@@ -888,6 +889,7 @@
           <div class="mk-kicker">Operator</div>
           <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
           <p class="page-sub">Every campaign’s public and private key. Only this password unlocks it.</p>
+          <p class="meta">Vaults on <strong>${esc(location.host)}</strong>. Localhost and getclippd.fun do not share keys.</p>
         </div>
         <button type="button" class="btn-pill" id="ops-lock">Lock</button>
       </div>
@@ -900,7 +902,7 @@
         <article class="card ops-card">
           <div>
             <div style="font-weight:800">${esc(v.ticker || "")} · ${esc(v.name || "")}</div>
-            <p class="meta" style="margin:.35rem 0 0">Campaign ID ${esc(v.campaign_id || "")} · ${esc(v.status || "")}${v.vault_onchain ? " · on Solana" : ""}</p>
+            <p class="meta" style="margin:.35rem 0 0">Campaign ID ${esc(v.campaign_id || "")} · ${esc(v.status || "")}${v.budget_usd != null ? " · " + usd(v.budget_usd) : ""}${v.vault_onchain ? " · on Solana" : ""}</p>
           </div>
           <div class="field" style="margin-top:1rem;margin-bottom:.6rem">
             <div class="field-head"><span>Public key</span></div>

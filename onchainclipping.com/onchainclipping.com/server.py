@@ -965,7 +965,7 @@ class Handler(SimpleHTTPRequestHandler):
             vaults = []
             for row in load_json(KEYS_PATH, []):
                 c = campaigns_by_id.get(row.get("campaign_id")) or {}
-                if (c.get("status") or "") != "live":
+                if c.get("demo") or row.get("campaign_id") == DEMO_ID:
                     continue
                 vaults.append(
                     {

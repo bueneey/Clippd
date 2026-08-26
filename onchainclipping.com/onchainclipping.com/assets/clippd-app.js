@@ -775,8 +775,8 @@
             <div class="label" style="margin-top:1.25rem">This campaign’s vault</div>
             <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
             <div class="fund-actions">
-              <button class="btn btn-primary fund-btn" id="copy-addr" type="button"><span data-copy-label>Copy address</span></button>
-              ${c.vault_address ? `<a class="btn btn-primary fund-btn" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+              <button class="btn fund-btn" id="copy-addr" type="button"><span data-copy-label>Copy address</span></button>
+              ${c.vault_address ? `<a class="btn fund-btn" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
               <span id="fund-onchain-badge" class="fund-badge ${onchain ? "on" : "off"}">${onchain ? "On Solana" : "Opening on Solana"}</span>
             </div>
             <div class="fund-ledger">
@@ -879,7 +879,7 @@
       paint("", `<h1 class="mk-h1">Could not load vaults.</h1><p class="err">${esc(data.error || "")}</p>`);
       return;
     }
-    const vaults = (data.vaults || []).filter((v) => v.status === "live");
+    const vaults = data.vaults || [];
     paint(
       "",
       `
@@ -893,7 +893,7 @@
       </div>
       ${
         !vaults.length
-          ? `<div class="empty card">No live campaigns yet.</div>`
+          ? `<div class="empty card">No campaign vaults yet.</div>`
           : vaults
               .map(
                 (v) => `

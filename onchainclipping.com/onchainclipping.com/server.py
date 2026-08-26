@@ -790,6 +790,32 @@ def list_campaigns():
     return [c for c in stored_campaigns() if not c.get("demo") and c.get("id") != DEMO_ID]
 
 
+def marketplace_stats():
+    live = [c for c in list_campaigns() if c.get("status") == "live"]
+    clippers = set()
+    clips = 0
+    views = 0
+    tvl = 0.0
+    paid = 0.0
+    for c in live:
+        tvl += float(c.get("budget_usd") or 0)
+        paid += float(c.get("spent_usd") or 0)
+        for clip in c.get("submissions") or []:
+            clips += 1
+            views += int(clip.get("views") or 0)
+            w = clip.get("clipper_wallet")
+            if w:
+                clippers.add(w)
+    return {
+        "clippers": len(clippers),
+        "live_campaigns": len(live),
+        "tvl_usd": round(tvl, 2),
+        "paid_usd": round(paid, 2),
+        "clips": clips,
+        "views": views,
+    }
+
+
 def refresh_quote(c):
     if c.get("demo") or c.get("status") == "live":
         return c
@@ -996,6 +1022,11 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, quote_payload(usd))
             except Exception as e:
                 self._json(502, {"error": str(e)})
+            return
+
+        if path == "/api/stats":
+            with LOCK:
+                self._json(200, marketplace_stats())
             return
 
         if path == "/api/campaigns":

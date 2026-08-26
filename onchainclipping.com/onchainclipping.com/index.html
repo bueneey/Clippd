@@ -61,15 +61,15 @@
                 </div>
                 <div class="home-hero-stats mx-auto grid max-w-3xl grid-cols-3 gap-6 border-t border-hairline sm:gap-10">
                         <div>
-                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span>$0.00</span></div>
+                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span id="stat-rewards">$0.00</span></div>
                             <div class="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total Rewards</div>
                         </div>
                         <div>
-                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span>0.0M+</span></div>
+                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span id="stat-views">0</span></div>
                             <div class="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Viral Views</div>
                         </div>
                         <div>
-                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span>0</span></div>
+                            <div class="tabular text-3xl font-extrabold tracking-tighter sm:text-4xl"><span id="stat-clippers-hero">0</span></div>
                             <div class="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Active Clippers</div>
                         </div>
                 </div>
@@ -135,10 +135,10 @@
                 </div>
             </div>
             <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-                <div class="flywheel-stat"><span>Clippers</span><strong>185</strong></div>
-                <div class="flywheel-stat"><span>Live campaigns</span><strong>12</strong></div>
-                <div class="flywheel-stat"><span>Vault TVL</span><strong>$4.1K</strong></div>
-                <div class="flywheel-stat"><span>Paid in SOL</span><strong>$0.33</strong></div>
+                <div class="flywheel-stat"><span>Clippers</span><strong id="stat-clippers">0</strong></div>
+                <div class="flywheel-stat"><span>Live campaigns</span><strong id="stat-live">0</strong></div>
+                <div class="flywheel-stat"><span>Vault TVL</span><strong id="stat-tvl">$0.00</strong></div>
+                <div class="flywheel-stat"><span>Paid in SOL</span><strong id="stat-paid">$0.00</strong></div>
             </div>
         </div>
     </section>
@@ -166,7 +166,7 @@
                                     <div class="mt-1 flex items-center gap-2"><span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-500/25"><span class="h-1 w-1 rounded-full bg-emerald-500 pulse-dot"></span>Active</span>
                                         <span
                                             class="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock h-3 w-3"
-                                                aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>10
+                                                aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>14
                                             <!-- -->days left</span>
                                     </div>
                                 </div>
@@ -192,12 +192,12 @@
                         </div>
                     </div>
                     <div class="mt-4 border-t border-hairline pt-3">
-                        <div class="flex items-baseline justify-between text-[11px] tabular"><span class="text-muted-foreground"><span class="font-semibold text-foreground">$742.00</span> paid out</span><span class="text-muted-foreground">of <span class="font-semibold text-foreground">$2,000.00</span></span>
+                        <div class="flex items-baseline justify-between text-[11px] tabular"><span class="text-muted-foreground"><span class="font-semibold text-foreground">$0.00</span> paid out</span><span class="text-muted-foreground">of <span class="font-semibold text-foreground">$0.00</span></span>
                         </div>
                         <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface">
-                            <div class="h-full rounded-full bg-primary transition-all" style="width:37%"></div>
+                            <div class="h-full rounded-full bg-primary transition-all" style="width:0%"></div>
                         </div>
-                        <div class="mt-1.5 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground"><span>37<!-- -->% used</span><span>Min <!-- -->5,000<!-- --> views to qualify</span></div>
+                        <div class="mt-1.5 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground"><span>0<!-- -->% used</span><span>Min <!-- -->1,000<!-- --> views to qualify</span></div>
                     </div>
                     </a>
             </div>
@@ -267,13 +267,13 @@
             <div class="overflow-hidden rounded-2xl border border-hairline bg-surface/40">
                 <div class="grid grid-cols-[1fr_auto_auto] gap-6 border-b border-hairline px-4 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground"><span>Cycle</span><span>Status</span><span class="text-right">Amount</span></div>
                 <div class="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-hairline/50 px-4 py-3 last:border-0">
-                    <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · July</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-amber-500/10 text-amber-500 ring-amber-500/30">Pending</span><span class="tabular text-right text-sm font-bold">$1,460.00</span></div>
+                    <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · —</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-surface text-muted-foreground ring-hairline">None yet</span><span class="tabular text-right text-sm font-bold">$0.00</span></div>
                 <div
                     class="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-hairline/50 px-4 py-3 last:border-0">
-                    <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · June</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-emerald-500/10 text-emerald-500 ring-emerald-500/30">Paid</span><span class="tabular text-right text-sm font-bold">$1,820.00</span></div>
+                    <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · —</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-surface text-muted-foreground ring-hairline">None yet</span><span class="tabular text-right text-sm font-bold">$0.00</span></div>
             <div
                 class="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-hairline/50 px-4 py-3 last:border-0">
-                <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · May</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-emerald-500/10 text-emerald-500 ring-emerald-500/30">Paid</span><span class="tabular text-right text-sm font-bold">$940.00</span></div>
+                <div class="flex items-center gap-2.5 text-sm font-semibold"><span class="text-muted-foreground">▤</span>$CLIPPD · —</div><span class="rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset bg-surface text-muted-foreground ring-hairline">None yet</span><span class="tabular text-right text-sm font-bold">$0.00</span></div>
         </div>
         </div>
         </div>
@@ -299,11 +299,9 @@
                         <div class="mb-4 flex items-center justify-between"><span class="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Campaign vault</span><span class="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-primary"></span></div>
                         <div class="tabular text-4xl font-extrabold tracking-tighter text-primary"><span>$0.00</span></div>
                         <div class="mt-6 space-y-2.5">
-                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">+<!-- -->0.42s</span><span>Clip verified → +<!-- -->$4.20</span></div>
-                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">+<!-- -->1.10s</span><span>Clip verified → +<!-- -->$12.50</span></div>
-                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">+<!-- -->2.03s</span><span>Clip verified → +<!-- -->$3.10</span></div>
-                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">+<!-- -->3.44s</span><span>Clip verified → +<!-- -->$22.40</span></div>
-                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">+<!-- -->5.12s</span><span>Clip verified → +<!-- -->$8.90</span></div>
+                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">Waiting</span><span>No clips verified yet</span></div>
+                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">—</span><span>$0.00</span></div>
+                            <div class="tabular flex items-center justify-between text-xs"><span class="text-muted-foreground">—</span><span>$0.00</span></div>
                         </div>
                     </div>
                 </div>
@@ -350,6 +348,35 @@
     </footer>
     </div>
     <script src="/assets/wallet.js?v=7"></script>
+    <script>
+      (function () {
+        function usd(n) {
+          return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function viewsLabel(n) {
+          n = Number(n || 0);
+          if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M+";
+          if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+          return String(Math.round(n));
+        }
+        fetch("/api/stats")
+          .then(function (r) { return r.json(); })
+          .then(function (s) {
+            function set(id, v) {
+              var el = document.getElementById(id);
+              if (el) el.textContent = v;
+            }
+            set("stat-rewards", usd(s.paid_usd));
+            set("stat-views", viewsLabel(s.views));
+            set("stat-clippers-hero", String(s.clippers || 0));
+            set("stat-clippers", String(s.clippers || 0));
+            set("stat-live", String(s.live_campaigns || 0));
+            set("stat-tvl", usd(s.tvl_usd));
+            set("stat-paid", usd(s.paid_usd));
+          })
+          .catch(function () {});
+      })();
+    </script>
     </body>
 
 </html>

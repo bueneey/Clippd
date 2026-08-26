@@ -480,9 +480,7 @@
             c.vault_demo || !c.vault_address
               ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, Clippd creates a Solana vault for that campaign only. The creator sends SOL there. When a clip’s views verify, that vault pays the clipper.</p>`
               : `${vaultAddressBlock(c.vault_address)}
-          <p class="meta">Campaign ID ${esc(c.id)} · vault for ${esc(c.ticker)} only</p>
-          <p class="meta">${c.vault_onchain ? "On Solana" : "Opening on Solana"} · balance ${esc(sol(c.received_sol || 0))} · counted ${esc(sol(c.net_received_sol != null ? c.net_received_sol : c.received_sol || 0))}</p>
-          <p class="meta">Need ${esc(sol(c.expected_sol))} · quoted at ${usd(c.sol_price_usd)} / SOL</p>
+          <p class="meta">vault for ${esc(c.ticker)} only</p>
           ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the counted SOL covers the live quote.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}`
           }
         </div>

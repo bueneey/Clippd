@@ -734,6 +734,8 @@ def profile_for(address):
     user["address"] = address
     user.setdefault("bio", "")
     user.setdefault("avatar", "")
+    if not user.get("avatar"):
+        user["avatar"] = "/assets/clippdpfpusre.png"
     ok, until = handle_can_change(user)
     user["handle_locked"] = not ok
     user["handle_unlock_at"] = until
@@ -1024,6 +1026,11 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, quote_payload(usd))
             except Exception as e:
                 self._json(502, {"error": str(e)})
+            return
+
+        if path == "/api/config":
+            ca = (os.environ.get("TOKEN_CA") or os.environ.get("CLIPPD_CA") or "...").strip() or "..."
+            self._json(200, {"ca": ca})
             return
 
         if path == "/api/stats":

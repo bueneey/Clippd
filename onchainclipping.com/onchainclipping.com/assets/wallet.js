@@ -432,6 +432,7 @@
     bindProviderEvents();
     silentReconnect();
     setTimeout(bindProviderEvents, 500);
+    loadCa();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
@@ -448,4 +449,44 @@
     short,
     refresh: renderAll,
   };
+
+  function caShort(raw) {
+    const s = String(raw || "...").trim() || "...";
+    if (s.length > 12) return s.slice(0, 4) + "…" + s.slice(-4);
+    return s;
+  }
+  function applyCa() {
+    const raw = window.CLIPPD_CA || "...";
+    const label = caShort(raw);
+    document.querySelectorAll("[data-ca-chip]").forEach((btn) => {
+      btn.setAttribute("data-ca", raw);
+      const t = btn.querySelector("[data-ca-text]");
+      if (t) t.textContent = label;
+    });
+  }
+  function loadCa() {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((c) => {
+        window.CLIPPD_CA = (c && c.ca) || "...";
+        applyCa();
+      })
+      .catch(() => {
+        window.CLIPPD_CA = "...";
+        applyCa();
+      });
+  }
+  if (!document.documentElement.hasAttribute("data-ca-bound")) {
+    document.documentElement.setAttribute("data-ca-bound", "");
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-ca-chip]");
+      if (!btn) return;
+      const ca = btn.getAttribute("data-ca") || window.CLIPPD_CA || "...";
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ca);
+      btn.classList.add("copied");
+      clearTimeout(btn._caT);
+      btn._caT = setTimeout(() => btn.classList.remove("copied"), 1200);
+    });
+  }
+  root.ClippdCa = { apply: applyCa };
 })(window);

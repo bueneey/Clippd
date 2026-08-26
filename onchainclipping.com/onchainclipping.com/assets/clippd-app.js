@@ -121,6 +121,7 @@
         <div class="mk-nav-inner">
           <a class="mk-brand" href="/"><img src="/assets/clippdpfp.png" alt="Clippd" width="36" height="36"/>Clippd</a>
           <div class="mk-sep"></div>
+          <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
           <nav class="mk-links">
             <a href="/">Home</a>
             <a class="${active === "campaigns" ? "on" : ""}" href="/campaigns" data-nav>Campaigns</a>
@@ -145,6 +146,7 @@
   function wrap(active, inner) {
     return `<div class="mk-wrap" id="mk-shell">${nav(active)}<main class="mk-main" id="mk-main">${inner}</main>
       <footer class="mk-foot">
+        <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
         <a href="https://x.com/clippdpump" target="_blank" rel="noopener">X · @clippdpump</a>
       </footer></div>`;
   }
@@ -184,6 +186,7 @@
     }
     const main = document.getElementById("mk-main");
     if (main) main.innerHTML = inner;
+    if (window.ClippdCa && window.ClippdCa.apply) window.ClippdCa.apply();
   }
   function walletOrThrow() {
     const w = window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get();
@@ -257,7 +260,7 @@
   }
 
   function avatarMarkup(url, sizeClass) {
-    const src = url || "/assets/clippdpfp.png";
+    const src = url || "/assets/clippdpfpusre.png";
     return `<img class="avatar ${sizeClass || ""}" src="${esc(src)}" alt="" decoding="async" width="48" height="48">`;
   }
 
@@ -1143,7 +1146,7 @@
           <form id="profile-form" class="profile-edit" style="margin-top:1.1rem">
             <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start">
               <label class="avatar-up">
-                <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfp.png")}" alt="">
+                <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfpusre.png")}" alt="">
                 <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
                 <span>Change photo</span>
               </label>

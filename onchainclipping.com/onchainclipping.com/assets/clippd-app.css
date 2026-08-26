@@ -126,6 +126,31 @@ body {
 }
 .mk-cta:hover { filter: brightness(1.08); }
 
+.ca-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  height: 2rem;
+  padding: 0 .7rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--foreground);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.ca-chip .ca-k { font-family: inherit; font-weight: 800; color: var(--muted); }
+.ca-chip:hover { border-color: var(--primary); }
+.ca-chip.copied { background: var(--primary); color: #fff; border-color: var(--primary); }
+.ca-chip.copied .ca-k { color: #fff; }
+
 .mk-foot {
   max-width: 72rem;
   margin: 0 auto;
@@ -134,6 +159,10 @@ body {
   font-weight: 800;
   letter-spacing: .14em;
   text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
 }
 .mk-foot a { color: var(--muted); text-decoration: none; }
 .mk-foot a:hover { color: var(--foreground); }

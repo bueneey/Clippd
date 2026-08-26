@@ -339,16 +339,37 @@
     return `<button type="button" class="cw-connect" data-cw-open>Connect wallet</button>`;
   }
 
+  function closeMenus(except) {
+    document.querySelectorAll(".cw-menu").forEach((m) => {
+      if (m !== except) m.hidden = true;
+    });
+  }
+
   function bindSlot(node) {
     node.querySelector("[data-cw-open]")?.addEventListener("click", openModal);
     node.querySelector("[data-cw-disconnect]")?.addEventListener("click", disconnect);
     const menuBtn = node.querySelector("[data-cw-menu]");
     const menu = node.querySelector(".cw-menu");
     if (menuBtn && menu) {
-      menuBtn.addEventListener("click", () => {
-        menu.hidden = !menu.hidden;
+      menuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasHidden = menu.hidden;
+        closeMenus();
+        menu.hidden = !wasHidden;
       });
     }
+    node.querySelector("[data-cw-profile]")?.addEventListener("click", () => closeMenus());
+  }
+
+  if (!document.documentElement.hasAttribute("data-cw-menu-bound")) {
+    document.documentElement.setAttribute("data-cw-menu-bound", "");
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".cw-connected")) return;
+      closeMenus();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMenus();
+    });
   }
 
   function renderAll() {

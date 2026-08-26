@@ -1,0 +1,6 @@
+[build]
+builder = "RAILPACK"
+
+[deploy]
+startCommand = "bash start.sh"
+restartPolicyType = "ON_FAILURE"

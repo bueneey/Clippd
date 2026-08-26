@@ -785,7 +785,9 @@ def embed_info(url, platform):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT") or 5173)
     host = os.environ.get("HOST") or "0.0.0.0"
+    site = (os.environ.get("SITE_URL") or "https://getclippd.fun").rstrip("/")
     server = ThreadingHTTPServer((host, port), Handler)
     print("clippd marketplace  http://%s:%s" % (host, port), flush=True)
+    print("public site         %s" % site, flush=True)
     print("vault keys          %s" % KEYS_TXT, flush=True)
     server.serve_forever()

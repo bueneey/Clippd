@@ -92,19 +92,27 @@
                 <div class="flywheel-stage">
                     <div class="flywheel-well"></div>
                     <svg class="flywheel-orbit" viewBox="0 0 400 400" aria-hidden="true">
-                        <circle cx="200" cy="200" r="108" fill="none" stroke="rgba(64,189,133,0.55)" stroke-width="10"></circle>
-                        <circle class="flywheel-spin" cx="200" cy="200" r="108" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="8 14" stroke-linecap="round"></circle>
-                        <g fill="#fff">
-                            <circle cx="200" cy="92" r="5.5"></circle>
-                            <circle cx="308" cy="200" r="5.5"></circle>
-                            <circle cx="200" cy="308" r="5.5"></circle>
-                            <circle cx="92" cy="200" r="5.5"></circle>
-                        </g>
-                        <g class="flywheel-arrows" fill="#fff">
-                            <g transform="translate(276.4 123.6) rotate(135)"><path d="M0 -14 L9 8 L0 2 L-9 8 Z"></path></g>
-                            <g transform="translate(276.4 276.4) rotate(225)"><path d="M0 -14 L9 8 L0 2 L-9 8 Z"></path></g>
-                            <g transform="translate(123.6 276.4) rotate(315)"><path d="M0 -14 L9 8 L0 2 L-9 8 Z"></path></g>
-                            <g transform="translate(123.6 123.6) rotate(45)"><path d="M0 -14 L9 8 L0 2 L-9 8 Z"></path></g>
+                        <circle cx="200" cy="200" r="118" fill="none" stroke="rgba(64,189,133,0.45)" stroke-width="10"></circle>
+                        <g class="flywheel-arms">
+                            <circle cx="200" cy="200" r="118" fill="none" stroke="#fff" stroke-width="2.4" stroke-dasharray="7 13" stroke-linecap="round"></circle>
+                            <g stroke="#fff" stroke-width="3" stroke-linecap="round">
+                                <line x1="200" y1="156" x2="200" y2="92"></line>
+                                <line x1="244" y1="200" x2="308" y2="200"></line>
+                                <line x1="200" y1="244" x2="200" y2="308"></line>
+                                <line x1="156" y1="200" x2="92" y2="200"></line>
+                            </g>
+                            <g fill="#fff">
+                                <circle cx="200" cy="82" r="6"></circle>
+                                <circle cx="318" cy="200" r="6"></circle>
+                                <circle cx="200" cy="318" r="6"></circle>
+                                <circle cx="82" cy="200" r="6"></circle>
+                            </g>
+                            <g fill="#fff">
+                                <g transform="translate(283.5 116.5) rotate(135)"><path d="M0 -13 L8.5 7.5 L0 1.5 L-8.5 7.5 Z"></path></g>
+                                <g transform="translate(283.5 283.5) rotate(225)"><path d="M0 -13 L8.5 7.5 L0 1.5 L-8.5 7.5 Z"></path></g>
+                                <g transform="translate(116.5 283.5) rotate(315)"><path d="M0 -13 L8.5 7.5 L0 1.5 L-8.5 7.5 Z"></path></g>
+                                <g transform="translate(116.5 116.5) rotate(45)"><path d="M0 -13 L8.5 7.5 L0 1.5 L-8.5 7.5 Z"></path></g>
+                            </g>
                         </g>
                     </svg>
                     <div class="flywheel-halo"></div>

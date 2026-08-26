@@ -1,6 +1,6 @@
 (function () {
   const root = document.getElementById("app");
-  const MIN_BUDGET_USD = 1;
+  const MIN_BUDGET_USD = 10;
   const PLATFORMS = ["tiktok", "instagram", "youtube", "x"];
   const launchDraft = {
     step: 1,
@@ -121,7 +121,6 @@
         <div class="mk-nav-inner">
           <a class="mk-brand" href="/"><img src="/assets/clippdpfp.png" alt="Clippd" width="36" height="36"/>Clippd</a>
           <div class="mk-sep"></div>
-          <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
           <nav class="mk-links">
             <a href="/">Home</a>
             <a class="${active === "campaigns" ? "on" : ""}" href="/campaigns" data-nav>Campaigns</a>
@@ -133,6 +132,7 @@
             }
           </nav>
           <div class="mk-nav-right">
+            <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
             <a class="mk-x" href="https://x.com/clippdpump" target="_blank" rel="noopener" aria-label="Clippd on X">
               <img src="/assets/platforms/x.svg" alt="" width="14" height="14"/>
             </a>

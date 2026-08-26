@@ -142,7 +142,7 @@ try:
 except OSError as e:
     print("data dir not writable: %s" % e, flush=True)
 
-MIN_BUDGET_USD = float(os.environ.get("MIN_BUDGET_USD") or 1)
+MIN_BUDGET_USD = float(os.environ.get("MIN_BUDGET_USD") or 10)
 LOCK = threading.Lock()
 QUOTE_CACHE = {"price": None, "at": 0}
 

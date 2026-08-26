@@ -50,7 +50,11 @@
   }
   function sol(n) {
     const x = Number(n || 0);
-    return x.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " SOL";
+    return x.toLocaleString(undefined, { maximumFractionDigits: 9 }) + " SOL";
+  }
+  function solCopy(n) {
+    const lamports = Math.round(Number(n || 0) * 1e9);
+    return String(lamports / 1e9);
   }
   function stopQuotePoll() {
     clearInterval(quoteTimer);
@@ -70,6 +74,8 @@
       return;
     }
     if (send) send.textContent = sol(q.sol);
+    const copySol = document.getElementById("copy-sol");
+    if (copySol && q.sol != null) copySol.setAttribute("data-sol", solCopy(q.sol));
     const need = document.getElementById("fund-need");
     if (need && q.sol != null) need.textContent = sol(q.sol);
     if (meta) {
@@ -376,7 +382,7 @@
     } catch (e) {
       err = e.message;
     }
-    const shown = campaigns.filter((c) => c.demo || c.status === "live" || c.status === "awaiting_deposit");
+    const shown = campaigns.filter((c) => c.status === "live" || c.demo);
     const live = shown.filter((c) => c.status === "live" || c.demo);
     const pool = shown.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
     const paid = shown.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
@@ -388,7 +394,7 @@
       <div class="page-head">
         <div>
           <h1 class="page-title">Campaigns</h1>
-          <p class="page-sub">Every campaign stays here. Unfunded vaults wait for SOL. Funded ones are live.</p>
+          <p class="page-sub">Live campaigns only. Fund a vault to appear here.</p>
         </div>
         <a class="btn-pill go primary" href="/launch" data-nav>Launch a campaign</a>
       </div>
@@ -426,6 +432,13 @@
     }
     if (!c) {
       paint("campaigns", `<h1 class="mk-h1">Not found.</h1><p class="err">${esc(err || "")}</p><p><a href="/campaigns" data-nav>Back to campaigns</a></p>`);
+      return;
+    }
+    if (c.status && c.status !== "live" && !c.demo) {
+      paint(
+        "campaigns",
+        `<h1 class="mk-h1">Not live yet.</h1><p class="mk-lead">Campaigns only appear here after the vault is funded.</p><p><a href="/campaigns" data-nav>Back to campaigns</a></p>`
+      );
       return;
     }
     const clips = c.submissions || [];
@@ -827,6 +840,8 @@
         badge.textContent = onchain ? "On Solana" : "Opening on Solana";
       }
       paintQuote({ sol: c.expected_sol, usd: c.budget_usd, sol_price_usd: c.sol_price_usd, lamports: c.expected_lamports });
+      const copySolLive = document.getElementById("copy-sol");
+      if (copySolLive) copySolLive.setAttribute("data-sol", solCopy(c.expected_sol));
     }
 
     if (silent && existing && !funded) {
@@ -847,8 +862,15 @@
         <p class="mk-lead">Send the quoted SOL to this campaign’s vault. Clippd checks the mainnet balance and the exact amount. When it matches, the campaign goes live.</p>
         <div class="grid grid-2" style="margin-top:1.5rem">
           <div class="card">
-            <div class="label">Send</div>
-            <div class="stat" id="fund-send">${esc(sol(c.expected_sol))}</div>
+            <div class="label">Send this exact amount</div>
+            <div class="fund-send-row">
+              <div class="stat" id="fund-send">${esc(sol(c.expected_sol))}</div>
+              ${
+                funded
+                  ? ""
+                  : `<button class="btn fund-btn" id="copy-sol" type="button" data-sol="${esc(solCopy(c.expected_sol))}"><span data-copy-label>Copy amount</span></button>`
+              }
+            </div>
             <p class="meta" id="fund-price">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL · live</p>
             <div class="label" style="margin-top:1.25rem">This campaign’s vault</div>
             <a class="addr addr-link" id="vault-addr" href="${esc(solscanUrl(c.vault_address))}" target="_blank" rel="noopener" title="View on Solscan">${esc(c.vault_address)}</a>
@@ -896,6 +918,13 @@
       copyAddr.onclick = () => {
         navigator.clipboard.writeText(c.vault_address);
         flashCopied(copyAddr);
+      };
+    }
+    const copySol = document.getElementById("copy-sol");
+    if (copySol) {
+      copySol.onclick = () => {
+        navigator.clipboard.writeText(copySol.getAttribute("data-sol") || solCopy(c.expected_sol));
+        flashCopied(copySol);
       };
     }
     if (!funded) {
@@ -1049,7 +1078,7 @@
     const bio = u.bio || "";
     const avatar = u.avatar || "";
     const clips = data.clips || [];
-    const camps = data.campaigns || [];
+    const camps = (data.campaigns || []).filter((c) => mine || c.status === "live" || c.demo);
     const backTo = safeFrom(new URLSearchParams(location.search).get("from"));
     const title = handle ? "@" + handle : shortCa(u.address);
     const handleLocked = !!u.handle_locked;

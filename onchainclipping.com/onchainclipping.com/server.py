@@ -12,7 +12,6 @@ import uuid
 import base64
 import hashlib
 import hmac
-import shutil
 from datetime import datetime, timezone, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -54,6 +53,14 @@ def on_railway():
     )
 
 
+def on_render():
+    return bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
+
+
+def on_hosted():
+    return on_railway() or on_render() or bool(os.environ.get("FLY_APP_NAME"))
+
+
 def listen_bind():
     host = "0.0.0.0"
     raw = (os.environ.get("PORT") or "").strip()
@@ -70,8 +77,8 @@ load_env(os.path.join(ROOT, ".env"))
 def ensure_admin_password():
     if (os.environ.get("ADMIN_PASSWORD") or "").strip():
         return
-    # Railway / read-only images cannot append .env. Ops stays locked until ADMIN_PASSWORD is set in host env.
-    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_ENVIRONMENT_ID"):
+    # Hosted images are usually read-only. Ops stays locked until ADMIN_PASSWORD is set in host env.
+    if on_hosted():
         return
     pw = "clippd-" + secrets.token_urlsafe(10)
     os.environ["ADMIN_PASSWORD"] = pw
@@ -92,7 +99,11 @@ def resolve_data_dir():
     env = (os.environ.get("DATA_DIR") or "").strip()
     if env:
         return env
-    if on_railway():
+    if on_hosted():
+        # Live campaigns must sit on a mounted disk, never in the git checkout.
+        for candidate in ("/data", "/var/data"):
+            if os.path.isdir(candidate) and os.access(candidate, os.W_OK):
+                return candidate
         return "/data"
     return BUNDLED_DATA
 
@@ -100,18 +111,23 @@ def resolve_data_dir():
 def init_persistent_data():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(os.path.join(DATA_DIR, "avatars"), exist_ok=True)
+    # Create missing files only. Never copy repo JSON onto the live store —
+    # a git checkout of empty campaigns.json is what wipes production.
     blanks = {"campaigns.json": [], "users.json": {}, "vault-keys.json": []}
     for name, empty in blanks.items():
         dest = os.path.join(DATA_DIR, name)
-        if os.path.exists(dest):
+        if os.path.isfile(dest):
             continue
-        src = os.path.join(BUNDLED_DATA, name)
-        if os.path.abspath(src) != os.path.abspath(dest) and os.path.exists(src):
-            shutil.copy(src, dest)
-        else:
-            with open(dest, "w") as f:
-                json.dump(empty, f, indent=2)
-                f.write("\n")
+        with open(dest, "w") as f:
+            json.dump(empty, f, indent=2)
+            f.write("\n")
+
+
+def data_inside_git_checkout():
+    try:
+        return os.path.commonpath([os.path.abspath(DATA_DIR), os.path.abspath(ROOT)]) == os.path.abspath(ROOT)
+    except ValueError:
+        return False
 
 
 DATA_DIR = resolve_data_dir()
@@ -965,6 +981,7 @@ class Handler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "data_dir": DATA_DIR,
+                    "persistent": not data_inside_git_checkout(),
                     "campaigns": len([c for c in stored_campaigns() if c.get("id") != DEMO_ID and not c.get("demo")]),
                 },
             )
@@ -987,7 +1004,7 @@ class Handler(SimpleHTTPRequestHandler):
                 out = [
                     public_campaign(c, include_submissions=False, users=users)
                     for c in list_campaigns()
-                    if c.get("status") in ("live", "awaiting_deposit")
+                    if c.get("status") == "live"
                 ]
             self._json(200, {"campaigns": out})
             return
@@ -1361,6 +1378,12 @@ if __name__ == "__main__":
     print("public site         %s" % site, flush=True)
     print("env PORT            %s" % (os.environ.get("PORT") or "(not set)"), flush=True)
     print("data dir            %s" % DATA_DIR, flush=True)
+    if on_hosted() and data_inside_git_checkout():
+        print(
+            "WARNING             campaigns are inside the git checkout. Every deploy will delete them. "
+            "Mount a disk at /data and set DATA_DIR=/data.",
+            flush=True,
+        )
     print("ops vaults          %s/ops" % site, flush=True)
     if not operator_keypair():
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)

@@ -1,0 +1,18 @@
+# Persistent disk so deploys do not wipe campaigns.json / vault keys.
+# In the Render dashboard: Disks → mount path /data, then set DATA_DIR=/data.
+services:
+  - type: web
+    name: clippd
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: clippd-data
+      mountPath: /data
+      sizeGB: 1

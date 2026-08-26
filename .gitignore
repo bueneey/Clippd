@@ -2,8 +2,12 @@
 .env.local
 data/VAULT_KEYS.txt
 data/vault-keys.json
+data/campaigns.json
+data/users.json
 **/data/VAULT_KEYS.txt
 **/data/vault-keys.json
+**/data/campaigns.json
+**/data/users.json
 **/data/avatars/
 __pycache__/
 *.pyc

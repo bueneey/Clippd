@@ -698,6 +698,14 @@ a.addr-link:hover {
 }
 .fund-badge.on { color: #40bd85; border: 1px solid #40bd8555; }
 .fund-badge.off { color: #f87171; border: 1px solid #f8717155; }
+.fund-send-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-top: .15rem;
+}
+.fund-send-row .stat { margin: 0; }
 .fund-actions {
   display: flex;
   flex-wrap: wrap;

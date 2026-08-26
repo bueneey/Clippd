@@ -1,0 +1,14 @@
+.env
+.env.local
+data/VAULT_KEYS.txt
+data/vault-keys.json
+**/data/VAULT_KEYS.txt
+**/data/vault-keys.json
+__pycache__/
+*.pyc
+.DS_Store
+.cursor/
+*.log
+onchainclipping.com/webpack---/
+onchainclipping.com/fonts.googleapis.com/
+onchainclipping.com/fonts.gstatic.com/

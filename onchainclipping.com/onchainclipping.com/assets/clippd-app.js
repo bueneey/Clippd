@@ -18,6 +18,7 @@
     platforms: ["tiktok", "instagram", "youtube", "x"],
   };
   let fundTimer = 0;
+  let quoteTimer = 0;
 
   function h(html) {
     return html;
@@ -49,6 +50,43 @@
   function sol(n) {
     const x = Number(n || 0);
     return x.toLocaleString(undefined, { maximumFractionDigits: 6 }) + " SOL";
+  }
+  function stopQuotePoll() {
+    clearInterval(quoteTimer);
+    quoteTimer = 0;
+  }
+  function paintQuote(q) {
+    if (!q) return;
+    const send = document.getElementById("quote-sol") || document.getElementById("fund-send");
+    const meta = document.getElementById("quote-meta") || document.getElementById("fund-price");
+    if (q.error) {
+      if (meta) meta.textContent = q.error;
+      return;
+    }
+    if (send) send.textContent = sol(q.sol);
+    if (meta) {
+      meta.textContent = document.getElementById("fund-price")
+        ? usd(q.usd) + " at " + usd(q.sol_price_usd) + " / SOL · live"
+        : usd(q.sol_price_usd) + " / SOL · " + usd(q.usd) + " budget · live";
+    }
+  }
+  async function fetchQuote(usdVal) {
+    const n = Number(usdVal);
+    if (!(n >= 10)) return { error: "Minimum budget is $10 USD" };
+    return api("/api/quote?usd=" + n);
+  }
+  function startQuotePoll(getUsd) {
+    stopQuotePoll();
+    const tick = async () => {
+      if (!document.getElementById("quote-sol") && !document.getElementById("fund-send")) return stopQuotePoll();
+      try {
+        paintQuote(await fetchQuote(getUsd()));
+      } catch (e) {
+        paintQuote({ error: e.message || "Could not fetch SOL price" });
+      }
+    };
+    tick();
+    quoteTimer = setInterval(tick, 10000);
   }
   function when(iso) {
     if (!iso) return "";
@@ -491,8 +529,8 @@
           <div class="preview-card" style="margin-top:1rem;background:linear-gradient(180deg, color-mix(in oklab, var(--primary) 10%, #fff), #fff)">
             <div class="label" style="color:var(--primary)">Campaign vault</div>
             <div class="stat" id="quote-sol" style="margin-top:.5rem">${quote.sol ? sol(quote.sol) : "…"}</div>
-            <p class="meta" id="quote-meta">${quote.error ? esc(quote.error) : quote.sol_price_usd ? usd(quote.sol_price_usd) + " / SOL · " + usd(quote.usd) + " budget" : "Fetching price…"}</p>
-            <p class="meta">Each campaign gets its own wallet. Send the quoted SOL and the campaign goes live when it lands.</p>
+            <p class="meta" id="quote-meta">${quote.error ? esc(quote.error) : quote.sol_price_usd ? usd(quote.sol_price_usd) + " / SOL · " + usd(quote.usd) + " budget · live" : "Fetching price…"}</p>
+            <p class="meta">USD budget quoted in SOL. Price refreshes every 10 seconds.</p>
           </div>
         </aside>
       </div>`
@@ -535,19 +573,11 @@
       budget.addEventListener("input", () => {
         clearTimeout(budget._t);
         budget._t = setTimeout(async () => {
-          const usdVal = Number(budget.value);
-          const solEl = document.getElementById("quote-sol");
-          const metaEl = document.getElementById("quote-meta");
-          if (!(usdVal >= 10)) {
-            if (solEl) solEl.textContent = "—";
-            if (metaEl) metaEl.textContent = "Minimum budget is $10 USD.";
-            return;
-          }
           try {
-            const q = await api("/api/quote?usd=" + usdVal);
-            if (solEl) solEl.textContent = sol(q.sol);
-            if (metaEl) metaEl.textContent = usd(q.sol_price_usd) + " / SOL · " + usd(q.usd) + " budget";
-          } catch (e) {}
+            paintQuote(await fetchQuote(budget.value));
+          } catch (e) {
+            paintQuote({ error: e.message || "Could not fetch SOL price" });
+          }
         }, 250);
       });
     }
@@ -623,6 +653,10 @@
         errEl.textContent = err.message;
       }
     });
+    startQuotePoll(() => {
+      const el = document.querySelector("[name='budget_usd']");
+      return el ? el.value : d.budget_usd;
+    });
   }
 
   async function pageFund(id, silent) {
@@ -644,6 +678,7 @@
     if (silent && existing && !funded) {
       const rec = document.getElementById("fund-received");
       if (rec) rec.textContent = "Received " + sol(c.received_sol || 0) + " · waiting on-chain";
+      paintQuote({ sol: c.expected_sol, usd: c.budget_usd, sol_price_usd: c.sol_price_usd });
       fundTimer = setTimeout(() => {
         if (path() === "/launch/" + id) pageFund(id, true);
       }, 5000);
@@ -661,8 +696,8 @@
         <div class="grid grid-2" style="margin-top:1.5rem">
           <div class="card">
             <div class="label">Send</div>
-            <div class="stat">${esc(sol(c.expected_sol))}</div>
-            <p class="meta">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL</p>
+            <div class="stat" id="fund-send">${esc(sol(c.expected_sol))}</div>
+            <p class="meta" id="fund-price">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL · live</p>
             <div class="label" style="margin-top:1.25rem">To this vault</div>
             <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
             <div class="mk-row" style="margin-top:1rem">
@@ -681,9 +716,9 @@
             <div class="label" style="margin-top:1.25rem">How funding works</div>
             <ol class="fund-steps">
               <li>clippd created a new Solana wallet just for this campaign. That wallet is the vault.</li>
-              <li>You send the quoted SOL to the address on the left. Use any wallet. This is a normal SOL transfer.</li>
-              <li>Every few seconds we read the vault balance on Solana. The page stays put — only the received amount updates.</li>
-              <li>When the quoted amount lands, status flips to live and clippers can submit.</li>
+              <li>You send the live quoted SOL to the address on the left. The USD→SOL amount refreshes every 10 seconds.</li>
+              <li>Every few seconds we read the vault balance on Solana. The page stays put — only the received amount and quote update.</li>
+              <li>When the current quoted amount lands, status flips to live and clippers can submit.</li>
             </ol>
             <p class="meta">Private keys never leave the server and are never shown here. Going live is real: a mainnet balance check. Clipper payouts from the vault are still done by the operator, not automatically from this page.</p>
           </div>
@@ -694,9 +729,12 @@
     const copyAddr = document.getElementById("copy-addr");
     if (copyAddr && c.vault_address) copyAddr.onclick = () => navigator.clipboard.writeText(c.vault_address);
     if (!funded) {
+      startQuotePoll(() => c.budget_usd);
       fundTimer = setTimeout(() => {
         if (path() === "/launch/" + id) pageFund(id, true);
       }, 5000);
+    } else {
+      stopQuotePoll();
     }
   }
 
@@ -798,6 +836,7 @@
 
   async function render() {
     clearTimeout(fundTimer);
+    stopQuotePoll();
     const p = path();
     document.title = "clippd";
     if (p === "/campaigns") return pageCampaigns();

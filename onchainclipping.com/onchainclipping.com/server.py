@@ -260,7 +260,7 @@ def http_json(url, payload=None, timeout=12):
 
 def sol_usd_price():
     now = time.time()
-    if QUOTE_CACHE["price"] and now - QUOTE_CACHE["at"] < 30:
+    if QUOTE_CACHE["price"] and now - QUOTE_CACHE["at"] < 8:
         return QUOTE_CACHE["price"]
     price = None
     try:
@@ -423,11 +423,27 @@ def list_campaigns():
     return rows
 
 
+def refresh_quote(c):
+    if c.get("demo") or c.get("status") == "live":
+        return c
+    try:
+        q = quote_payload(float(c.get("budget_usd") or 0))
+        c["expected_sol"] = q["sol"]
+        c["expected_lamports"] = q["lamports"]
+        c["sol_price_usd"] = q["sol_price_usd"]
+        c["quoted_at"] = utcnow()
+    except Exception:
+        pass
+    return c
+
+
 def refresh_deposit(c):
     if c.get("demo"):
         return c
     if not c.get("vault_address"):
         return c
+    if c.get("status") != "live":
+        refresh_quote(c)
     lamports = get_balance_lamports(c["vault_address"])
     sol = lamports / 1e9
     c["received_lamports"] = lamports

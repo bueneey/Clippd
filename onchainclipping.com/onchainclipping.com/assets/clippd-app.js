@@ -212,11 +212,9 @@
       err = e.message;
     }
     const live = campaigns.filter((c) => c.status === "live" || c.demo);
-    const wait = campaigns.filter((c) => c.status !== "live" && !c.demo);
-    const all = live.concat(wait);
-    const pool = all.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
-    const paid = all.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
-    const clips = all.reduce((s, c) => s + ((c.submissions && c.submissions.length) || 0), 0);
+    const pool = live.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
+    const paid = live.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
+    const clips = live.reduce((s, c) => s + ((c.submissions && c.submissions.length) || 0), 0);
     paint(
       "campaigns",
       `
@@ -224,7 +222,7 @@
       <div class="page-head">
         <div>
           <h1 class="page-title">Active Campaigns</h1>
-          <p class="page-sub">Every campaign, every dollar. Vaults update as SOL lands and clips get verified.</p>
+          <p class="page-sub">Live, funded campaigns only. Unfunded vaults stay off the board until the SOL lands.</p>
         </div>
         <a class="btn-pill go primary" href="/launch" data-nav>Launch a campaign</a>
       </div>
@@ -236,9 +234,9 @@
       </div>
       ${err ? `<p class="err">${esc(err)}</p>` : ""}
       ${
-        !all.length
-          ? `<div class="empty card" style="margin-top:2rem">No campaigns yet. Fund a vault to go live.</div>`
-          : `<div class="camp-grid">${all.map(campaignCard).join("")}</div>`
+        !live.length
+          ? `<div class="empty card" style="margin-top:2rem">No live campaigns yet. Fund a vault to go live.</div>`
+          : `<div class="camp-grid">${live.map(campaignCard).join("")}</div>`
       }`
     );
     bindCopyCa();
@@ -365,12 +363,6 @@
         }
       });
     }
-
-    if (c.status !== "live") {
-      setTimeout(() => {
-        if (path() === "/campaigns/" + id) pageCampaign(id);
-      }, 5000);
-    }
   }
 
   function readLaunchFields() {
@@ -423,11 +415,11 @@
         </div>
       </div>
       <div class="grid grid-2">
-        <div class="field"><label>Ticker *</label><input class="input" name="ticker" placeholder="$BLIP" value="${esc(d.ticker)}"></div>
-        <div class="field"><label>Project name *</label><input class="input" name="name" placeholder="Blip" value="${esc(d.name)}"></div>
+        <div class="field"><label>Ticker *</label><input class="input" name="ticker" placeholder="$COIN" value="${esc(d.ticker)}"></div>
+        <div class="field"><label>Project name *</label><input class="input" name="name" placeholder="Your coin" value="${esc(d.name)}"></div>
       </div>
       <div class="field"><label>Contract address</label><input class="input mono" name="contract" placeholder="Your token CA" value="${esc(d.contract)}"></div>
-      <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#blip" value="${esc(d.hashtag)}"></div>`;
+      <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#coin" value="${esc(d.hashtag)}"></div>`;
 
     const step2 = `
       <p class="meta" style="margin:0 0 1rem">clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>

@@ -76,12 +76,12 @@ def demo_campaign():
     x = "https://x.com/solana/status/1740000000000000000"
     return {
         "id": DEMO_ID,
-        "ticker": "$BLIP",
-        "name": "Blip",
+        "ticker": "$CLIPPD",
+        "name": "clippd",
         "demo": True,
         "contract": "",
-        "hashtag": "#blip",
-        "brief": "Clip Blip. Original edits only — no straight reposts. This is a demo campaign, not a live token.",
+        "hashtag": "#clippd",
+        "brief": "Clip $CLIPPD. Original edits only — no straight reposts.",
         "budget_usd": 2000,
         "rate_per_1k_usd": 1.5,
         "ugc_rate_per_1k_usd": 3.5,
@@ -527,7 +527,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if changed:
                     save_json(CAMPAIGNS_PATH, campaigns)
                     write_keys_txt(load_json(KEYS_PATH, []), campaigns)
-                out = [public_campaign(c) for c in list_campaigns()]
+                out = [public_campaign(c) for c in list_campaigns() if c.get("status") == "live" or c.get("demo")]
             self._json(200, {"campaigns": out})
             return
 

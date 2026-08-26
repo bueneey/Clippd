@@ -33,16 +33,16 @@
     "creator_wallet": "9HduN1ee6LJXzZXevZ3FQHBPmGPJhsQPjQGLKMepJRRU",
     "creator_wallet_name": "phantom",
     "submissions": [],
-    "balance_checked_at": "2026-08-26T05:02:45.764551+00:00"
+    "balance_checked_at": "2026-08-26T05:05:05.022627+00:00"
   },
   {
     "id": "ansem",
-    "ticker": "$BLIP",
-    "name": "Blip",
+    "ticker": "$CLIPPD",
+    "name": "clippd",
     "demo": true,
     "contract": "",
-    "hashtag": "#blip",
-    "brief": "Clip Blip. Original edits only \u2014 no straight reposts. This is a demo campaign, not a live token.",
+    "hashtag": "#clippd",
+    "brief": "Clip $CLIPPD. Original edits only \u2014 no straight reposts.",
     "budget_usd": 2000,
     "rate_per_1k_usd": 1.5,
     "ugc_rate_per_1k_usd": 3.5,

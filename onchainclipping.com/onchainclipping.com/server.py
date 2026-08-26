@@ -65,7 +65,7 @@ KEYS_TXT = os.path.join(DATA_DIR, "VAULT_KEYS.txt")
 os.chdir(ROOT)
 os.makedirs(DATA_DIR, exist_ok=True)
 
-MIN_BUDGET_USD = float(os.environ.get("MIN_BUDGET_USD") or 10)
+MIN_BUDGET_USD = float(os.environ.get("MIN_BUDGET_USD") or 1)
 LOCK = threading.Lock()
 QUOTE_CACHE = {"price": None, "at": 0}
 
@@ -965,6 +965,8 @@ class Handler(SimpleHTTPRequestHandler):
             vaults = []
             for row in load_json(KEYS_PATH, []):
                 c = campaigns_by_id.get(row.get("campaign_id")) or {}
+                if (c.get("status") or "") != "live":
+                    continue
                 vaults.append(
                     {
                         "campaign_id": row.get("campaign_id"),

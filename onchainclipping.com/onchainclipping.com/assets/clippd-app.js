@@ -1,5 +1,6 @@
 (function () {
   const root = document.getElementById("app");
+  const MIN_BUDGET_USD = 1;
   const PLATFORMS = ["tiktok", "instagram", "youtube", "x"];
   const launchDraft = {
     step: 1,
@@ -80,7 +81,7 @@
   }
   async function fetchQuote(usdVal) {
     const n = Number(usdVal);
-    if (!(n >= 10)) return { error: "Minimum budget is $10 USD" };
+    if (!(n >= MIN_BUDGET_USD)) return { error: "Minimum budget is $" + MIN_BUDGET_USD + " USD" };
     return api("/api/quote?usd=" + n);
   }
   function startQuotePoll(getUsd) {
@@ -487,7 +488,7 @@
     const d = launchDraft;
     let quote = { usd: d.budget_usd, sol: 0, sol_price_usd: 0 };
     try {
-      quote = await api("/api/quote?usd=" + Math.max(10, Number(d.budget_usd) || 10));
+      quote = await api("/api/quote?usd=" + Math.max(MIN_BUDGET_USD, Number(d.budget_usd) || MIN_BUDGET_USD));
     } catch (e) {
       quote = { usd: d.budget_usd, sol: 0, sol_price_usd: 0, error: e.message || "Could not fetch SOL price" };
     }
@@ -507,9 +508,9 @@
       <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#coin" value="${esc(d.hashtag)}"></div>`;
 
     const step2 = `
-      <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>
+      <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $${MIN_BUDGET_USD} USD.</p>
       <div class="grid grid-2">
-        <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $10. Quoted live in SOL.</p></div>
+        <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="${MIN_BUDGET_USD}" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $${MIN_BUDGET_USD}. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
         <div class="field">${fieldHead("Pay per 1,000 views (USD)", "rate_per_1k_usd")}<input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" placeholder="e.g. 2.00" value="${esc(d.rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">What you pay a clipper from this vault for every 1,000 verified views. $2.00 → 10,000 views = $20.</p></div>
         <div class="field"><label>UGC / face-cam pay per 1K (optional)</label><input class="input" name="ugc_rate_per_1k_usd" type="number" min="0" step="0.05" placeholder="Optional extra" value="${esc(d.ugc_rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">Only if you want to pay more for face-on-camera clips.</p></div>
@@ -649,7 +650,7 @@
         }
         if (d.step === 2) {
           const errs = {};
-          if (!(Number(d.budget_usd) >= 10)) errs.budget_usd = "Minimum is $10";
+          if (!(Number(d.budget_usd) >= MIN_BUDGET_USD)) errs.budget_usd = "Minimum is $" + MIN_BUDGET_USD;
           if (!(Number(d.rate_per_1k_usd) > 0)) errs.rate_per_1k_usd = "Required";
           if (Object.keys(errs).length) return setLaunchErrors(errs);
         }
@@ -665,8 +666,8 @@
       errEl.textContent = "";
       try {
         const w = walletOrThrow();
-        if (Number(d.budget_usd) < 10) {
-          setLaunchErrors({ budget_usd: "Minimum is $10" });
+        if (Number(d.budget_usd) < MIN_BUDGET_USD) {
+          setLaunchErrors({ budget_usd: "Minimum is $" + MIN_BUDGET_USD });
           return;
         }
         if (!(Number(d.rate_per_1k_usd) > 0)) {
@@ -878,7 +879,7 @@
       paint("", `<h1 class="mk-h1">Could not load vaults.</h1><p class="err">${esc(data.error || "")}</p>`);
       return;
     }
-    const vaults = data.vaults || [];
+    const vaults = (data.vaults || []).filter((v) => v.status === "live");
     paint(
       "",
       `
@@ -892,7 +893,7 @@
       </div>
       ${
         !vaults.length
-          ? `<div class="empty card">No campaign vaults yet.</div>`
+          ? `<div class="empty card">No live campaigns yet.</div>`
           : vaults
               .map(
                 (v) => `

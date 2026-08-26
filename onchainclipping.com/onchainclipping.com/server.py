@@ -149,6 +149,8 @@ PRICE_URLS = [
 B58 = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 PLATFORMS = ("tiktok", "instagram", "youtube", "x")
 DEMO_ID = "ansem"
+TEST_ID = "test"
+TEST_VAULT = "8kkTMXsgfh57uAcbsQTYy1riWxAXGAp337fiZKCiSKLU"
 
 
 def demo_campaign():
@@ -779,6 +781,68 @@ def refresh_deposit(c):
     return c
 
 
+def ensure_test_campaign():
+    """Put $TEST back if Railway/local data lost it. Keep the original vault address."""
+    try:
+        with LOCK:
+            rows = stored_campaigns()
+            if any(
+                c.get("id") == TEST_ID
+                or (c.get("ticker") or "").upper() == "$TEST"
+                or c.get("vault_address") == TEST_VAULT
+                for c in rows
+            ):
+                return
+            try:
+                q = quote_payload(1)
+            except Exception:
+                q = {"sol": 0.0103, "lamports": 10300000, "sol_price_usd": 97.0}
+            campaign = {
+                "id": TEST_ID,
+                "ticker": "$TEST",
+                "name": "Test Coin",
+                "contract": "",
+                "hashtag": "#TEST",
+                "brief": "Clip the coin.",
+                "budget_usd": 1.0,
+                "rate_per_1k_usd": 1.0,
+                "ugc_rate_per_1k_usd": None,
+                "viral_bonus_usd": None,
+                "min_views": 1000,
+                "duration_days": 7,
+                "platforms": ["tiktok", "instagram"],
+                "status": "awaiting_deposit",
+                "vault_address": TEST_VAULT,
+                "vault_onchain": True,
+                "seed_lamports": 0,
+                "expected_sol": q["sol"],
+                "expected_lamports": q["lamports"],
+                "sol_price_usd": q["sol_price_usd"],
+                "received_sol": 0,
+                "received_lamports": 0,
+                "net_received_sol": 0,
+                "remaining_sol": q["sol"],
+                "remaining_lamports": q["lamports"],
+                "created_at": utcnow(),
+                "funded_at": None,
+                "funding_signature": None,
+                "spent_usd": 0,
+                "color": "#40bd85",
+                "creator_wallet": "9HduN1ee6LJXzZXevZ3FQHBPmGPJhsQPjQGLKMepJRRU",
+                "creator_wallet_name": "phantom",
+                "submissions": [],
+            }
+            try:
+                refresh_deposit(campaign)
+            except Exception:
+                pass
+            rows.insert(0, campaign)
+            save_json(CAMPAIGNS_PATH, rows)
+            print("restored $TEST vault %s" % TEST_VAULT, flush=True)
+    except Exception as e:
+        print("could not restore $TEST: %s" % e, flush=True)
+
+
 def admin_password():
     return (os.environ.get("ADMIN_PASSWORD") or "").strip()
 
@@ -1306,4 +1370,5 @@ if __name__ == "__main__":
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)
     if not admin_password():
         print("ADMIN_PASSWORD      not set — /ops stays locked", flush=True)
+    ensure_test_campaign()
     server.serve_forever()

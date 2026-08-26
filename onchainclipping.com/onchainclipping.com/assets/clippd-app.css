@@ -479,6 +479,20 @@ a.addr-link:hover {
 .cw-opt-name { flex: 1; }
 .cw-opt-go { color: var(--muted); font-size: 16px; font-weight: 600; }
 
+#clippd-profile-modal[hidden] { display: none !important; }
+#clippd-profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+}
+.cw-sheet.profile-sheet {
+  width: min(440px, calc(100vw - 2rem));
+  max-height: min(90vh, 740px);
+  overflow: auto;
+}
+
 .page-badge {
   display: inline-flex;
   align-items: center;

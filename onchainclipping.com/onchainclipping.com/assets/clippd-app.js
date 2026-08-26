@@ -1036,7 +1036,14 @@
             ${bio ? `<p class="profile-bio">${esc(bio)}</p>` : ""}
           </div>
         </div>
+        ${
+          mine
+            ? `<div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button type="button" class="btn-pill go primary" id="edit-profile">Edit profile</button>
         <button type="button" class="btn-pill" id="copy-profile"><span data-copy-label>Copy wallet</span></button>
+      </div>`
+            : `<button type="button" class="btn-pill" id="copy-profile"><span data-copy-label>Copy wallet</span></button>`
+        }
       </div>
       <div class="stat-strip">
         <div class="stat-cell"><div class="label">Clips submitted</div><div class="stat">${data.stats.clips}</div></div>
@@ -1044,30 +1051,41 @@
       </div>
       ${
         mine
-          ? `<form id="profile-form" class="card profile-edit" style="margin-top:1.5rem">
-              <div class="label">Your profile</div>
-              <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start;margin-top:1rem">
-                <label class="avatar-up">
-                  <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfp.png")}" alt="">
-                  <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
-                  <span>Change photo</span>
-                </label>
-                <div style="flex:1;min-width:220px">
-                  <div class="field">
-                    ${fieldHead("Username", "handle")}
-                    <input class="input" name="handle" maxlength="20" placeholder="yourname" value="${esc(handle)}" autocomplete="username">
-                    <p class="handle-hint" id="handle-hint">${esc(handleHint(handle))}</p>
-                  </div>
-                  <div class="field" style="margin-bottom:0">
-                    ${fieldHead("Bio", "bio")}
-                    <textarea class="input" name="bio" maxlength="160" placeholder="What you clip, what you launch.">${esc(bio)}</textarea>
-                    <p class="handle-hint">160 characters max.</p>
-                  </div>
+          ? `<div id="clippd-profile-modal" hidden>
+        <div class="cw-backdrop" data-profile-close></div>
+        <div class="cw-sheet profile-sheet" role="dialog" aria-labelledby="profile-edit-title">
+          <div class="cw-head">
+            <div>
+              <h3 id="profile-edit-title">Edit profile</h3>
+              <p class="cw-lead">Username, bio, and photo. Wallet stays the same.</p>
+            </div>
+            <button type="button" class="cw-x" data-profile-close aria-label="Close">×</button>
+          </div>
+          <form id="profile-form" class="profile-edit" style="margin-top:1.1rem">
+            <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start">
+              <label class="avatar-up">
+                <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfp.png")}" alt="">
+                <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+                <span>Change photo</span>
+              </label>
+              <div style="flex:1;min-width:200px">
+                <div class="field">
+                  ${fieldHead("Username", "handle")}
+                  <input class="input" name="handle" maxlength="20" placeholder="yourname" value="${esc(handle)}" autocomplete="username">
+                  <p class="handle-hint" id="handle-hint">${esc(handleHint(handle))}</p>
+                </div>
+                <div class="field" style="margin-bottom:0">
+                  ${fieldHead("Bio", "bio")}
+                  <textarea class="input" name="bio" maxlength="160" placeholder="What you clip, what you launch.">${esc(bio)}</textarea>
+                  <p class="handle-hint">160 characters max.</p>
                 </div>
               </div>
-              <button class="btn-pill go primary" type="submit" style="margin-top:1.1rem">Save profile</button>
-              <div class="err" id="profile-err"></div>
-            </form>`
+            </div>
+            <button class="btn-pill go primary" type="submit" style="margin-top:1.15rem">Save profile</button>
+            <div class="err" id="profile-err"></div>
+          </form>
+        </div>
+      </div>`
           : ""
       }
       <h2 style="margin:2.5rem 0 1rem;font-size:1.6rem;letter-spacing:-.04em">Clips</h2>
@@ -1099,6 +1117,19 @@
     );
     bindCopyCa();
     const copyBtn = document.getElementById("copy-profile");
+    const modal = document.getElementById("clippd-profile-modal");
+    const openEdit = document.getElementById("edit-profile");
+    const closeProfile = () => {
+      if (modal) modal.hidden = true;
+    };
+    if (openEdit && modal) {
+      openEdit.onclick = () => {
+        modal.hidden = false;
+      };
+      modal.querySelectorAll("[data-profile-close]").forEach((el) => {
+        el.onclick = closeProfile;
+      });
+    }
     if (copyBtn) {
       copyBtn.onclick = () => {
         navigator.clipboard.writeText(u.address);

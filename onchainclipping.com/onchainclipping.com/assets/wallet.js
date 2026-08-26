@@ -14,19 +14,46 @@
   let state = null;
   const listeners = new Set();
 
-  wipeStored();
   bootWalletStandard();
+  restoreSession();
 
   function wipeStored() {
     try {
-      localStorage.removeItem(KEY);
       sessionStorage.removeItem(KEY);
+      localStorage.removeItem(KEY);
     } catch (_) {}
-    state = null;
+  }
+
+  function restoreSession() {
+    try {
+      const raw = sessionStorage.getItem(KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && obj.address && obj.wallet) state = obj;
+    } catch (_) {}
+  }
+
+  function persist() {
+    try {
+      if (state && state.address) {
+        sessionStorage.setItem(
+          KEY,
+          JSON.stringify({
+            address: state.address,
+            wallet: state.wallet,
+            connectedAt: state.connectedAt || Date.now(),
+          })
+        );
+      } else {
+        sessionStorage.removeItem(KEY);
+      }
+      localStorage.removeItem(KEY);
+    } catch (_) {}
   }
 
   function save(next) {
     state = next;
+    persist();
     listeners.forEach((fn) => fn(state));
     renderAll();
   }
@@ -151,7 +178,6 @@
 
   async function connectInjected(p) {
     if (typeof p.connect !== "function") throw new Error("This wallet does not support connect().");
-    await forgetInjected(p);
     const res = await p.connect({ onlyIfTrusted: false });
     const key = res && (res.publicKey || res);
     const addr = key && (typeof key.toString === "function" ? key.toString() : String(key));
@@ -330,6 +356,22 @@
       node.innerHTML = slotHtml();
       bindSlot(node);
     });
+    const app = document.getElementById("app");
+    if (app) return;
+    const links = document.querySelector(".mk-links");
+    if (!links) return;
+    let you = links.querySelector("[data-you]");
+    if (state && state.address) {
+      if (!you) {
+        you = document.createElement("a");
+        you.setAttribute("data-you", "");
+        you.textContent = "You";
+        links.appendChild(you);
+      }
+      you.setAttribute("href", "/u/" + state.address);
+    } else if (you) {
+      you.remove();
+    }
   }
 
   function bindProviderEvents() {
@@ -337,42 +379,39 @@
     if (p && !p._clippdBound) {
       p._clippdBound = true;
       try {
-        p.on("disconnect", () => {
-          wipeStored();
-          save(null);
-        });
         p.on("accountChanged", (key) => {
-          if (!key) {
-            wipeStored();
-            save(null);
+          if (!key || !state) return;
+          const addr = typeof key.toString === "function" ? key.toString() : String(key);
+          if (addr && addr.length >= 32) {
+            save({ address: addr, wallet: state.wallet || "phantom", connectedAt: Date.now() });
           }
         });
       } catch (_) {}
     }
   }
 
-  function mount() {
-    wipeStored();
-    ensureModal();
-    renderAll();
-    forgetAll();
-    bindProviderEvents();
-    setTimeout(() => {
-      bindProviderEvents();
-      if (!state) forgetProviders();
-    }, 500);
+  async function silentReconnect() {
+    if (!state || !state.wallet) return;
+    const found = provider(state.wallet);
+    if (!found || found.type !== "injected" || typeof found.p.connect !== "function") return;
+    try {
+      const res = await found.p.connect({ onlyIfTrusted: true });
+      const key = res && (res.publicKey || res);
+      const addr = key && (typeof key.toString === "function" ? key.toString() : String(key));
+      if (addr && addr.length >= 32) {
+        save({ address: addr, wallet: state.wallet, connectedAt: Date.now() });
+      }
+    } catch (_) {}
   }
 
-  window.addEventListener("pageshow", (e) => {
-    if (!e.persisted) return;
-    wipeStored();
-    save(null);
-    forgetProviders();
-  });
-  window.addEventListener("pagehide", () => {
-    wipeStored();
-    forgetProviders();
-  });
+  function mount() {
+    restoreSession();
+    ensureModal();
+    renderAll();
+    bindProviderEvents();
+    silentReconnect();
+    setTimeout(bindProviderEvents, 500);
+  }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();

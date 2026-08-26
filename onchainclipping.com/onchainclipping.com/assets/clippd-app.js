@@ -1,7 +1,6 @@
 (function () {
   const root = document.getElementById("app");
   const PLATFORMS = ["tiktok", "instagram", "youtube", "x"];
-  const vaultCache = {};
   const launchDraft = {
     step: 1,
     ticker: "",
@@ -11,13 +10,14 @@
     image: "",
     brief: "",
     budget_usd: 100,
-    rate_per_1k_usd: 1.5,
-    ugc_rate_per_1k_usd: 3.5,
-    viral_bonus_usd: 500,
-    min_views: 5000,
+    rate_per_1k_usd: "",
+    ugc_rate_per_1k_usd: "",
+    viral_bonus_usd: "",
+    min_views: 1000,
     duration_days: 14,
     platforms: ["tiktok", "instagram", "youtube", "x"],
   };
+  let fundTimer = 0;
 
   function h(html) {
     return html;
@@ -66,6 +66,11 @@
             <a href="/">Home</a>
             <a class="${active === "campaigns" ? "on" : ""}" href="/campaigns" data-nav>Campaigns</a>
             <a class="${active === "launch" ? "on" : ""}" href="/launch" data-nav>Launch</a>
+            ${
+              (window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get() && window.ClippdWallet.get().address)
+                ? `<a class="${active === "profile" ? "on" : ""}" href="/u/${esc(window.ClippdWallet.get().address)}" data-nav data-you>You</a>`
+                : ""
+            }
           </nav>
           <div class="mk-nav-right">
             <a class="mk-x" href="https://x.com/clippdpump" target="_blank" rel="noopener" aria-label="clippd on X">
@@ -118,6 +123,29 @@
     return addr.slice(0, 4) + "…" + addr.slice(-6);
   }
 
+  function who(addr, label) {
+    if (!addr) return esc(label || "");
+    return `<a class="who" href="/u/${esc(addr)}" data-nav>${esc(label || shortCa(addr))}</a>`;
+  }
+
+  function bindCopyCa() {
+    document.querySelectorAll("[data-ca]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ca = btn.getAttribute("data-ca") || "";
+        if (ca) navigator.clipboard.writeText(ca);
+        const action = btn.querySelector(".camp-ca-action");
+        if (action) {
+          action.textContent = "Copied";
+          setTimeout(() => {
+            action.textContent = "Copy";
+          }, 1400);
+        }
+      });
+    });
+  }
+
   function tokenMark(c, size) {
     const n = size || 44;
     if (c.image) {
@@ -148,7 +176,7 @@
         </div>
         ${
           c.contract
-            ? `<button type="button" class="camp-ca" data-ca="${esc(c.contract)}"><span><span style="font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;opacity:.7">CA</span> <span class="mono">${esc(shortCa(c.contract))}</span></span><span>Copy</span></button>`
+            ? `<button type="button" class="camp-ca" data-ca="${esc(c.contract)}"><span class="camp-ca-left"><span class="camp-ca-k">CA</span> <span class="mono camp-ca-addr">${esc(shortCa(c.contract))}</span></span><span class="camp-ca-action">Copy</span></button>`
             : ""
         }
         <div style="margin-top:1.15rem">
@@ -213,23 +241,13 @@
           : `<div class="camp-grid">${all.map(campaignCard).join("")}</div>`
       }`
     );
-    document.querySelectorAll("[data-ca]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        navigator.clipboard.writeText(btn.getAttribute("data-ca"));
-        btn.querySelector("span:last-child").textContent = "Copied";
-        setTimeout(() => {
-          btn.querySelector("span:last-child").textContent = "Copy";
-        }, 1200);
-      });
-    });
+    bindCopyCa();
   }
 
   function embedBlock(clip) {
     const iframe = clip.embed && clip.embed.iframe;
     if (iframe) {
-      return `<iframe class="embed" src="${esc(iframe)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
+      return `<iframe class="embed" src="${esc(iframe)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
     }
     return `<div class="empty">Open the ${esc(clip.platform)} post →</div>`;
   }
@@ -264,21 +282,30 @@
       </div>
       <div class="grid grid-2" style="margin-top:1.5rem">
         <div class="card">
-          <div class="label">Rate per 1K views</div>
-          <div class="stat">${usd(c.rate_per_1k_usd)} <span style="font-size:13px;font-weight:600;color:var(--muted)">paid in SOL</span></div>
+          <div class="label">This campaign’s terms</div>
+          ${c.rate_per_1k_usd ? `<div class="stat">${usd(c.rate_per_1k_usd)} <span style="font-size:13px;font-weight:600;color:var(--muted)">/ 1K views · set by the creator</span></div>` : `<p class="meta">Creator did not publish a per-1K rate.</p>`}
           ${c.ugc_rate_per_1k_usd ? `<p class="meta">UGC / face-cam ${usd(c.ugc_rate_per_1k_usd)} / 1K</p>` : ""}
           ${c.viral_bonus_usd ? `<p class="meta">Viral bonus ${usd(c.viral_bonus_usd)}</p>` : ""}
           <p class="meta">Min ${esc(String(c.min_views))} views · ${esc(String(c.duration_days))} days</p>
           <div class="plat-row" style="margin-top:.75rem">${(c.platforms || []).map((p) => platIcon(p, 18)).join("")}</div>
           ${c.hashtag ? `<p class="meta">${esc(c.hashtag)}</p>` : ""}
-          ${c.contract ? `<p class="mono meta">CA ${esc(c.contract)}</p>` : ""}
+          ${c.creator_wallet ? `<p class="meta">Creator ${who(c.creator_wallet, c.creator_handle || shortCa(c.creator_wallet))}</p>` : ""}
+          ${
+            c.contract
+              ? `<button type="button" class="camp-ca" data-ca="${esc(c.contract)}" style="margin-top:.85rem"><span class="camp-ca-left"><span class="camp-ca-k">CA</span> <span class="mono camp-ca-addr">${esc(shortCa(c.contract))}</span></span><span class="camp-ca-action">Copy</span></button>`
+              : ""
+          }
           ${c.brief ? `<p style="margin-top:1rem;line-height:1.6">${esc(c.brief)}</p>` : ""}
         </div>
         <div class="card">
           <div class="label">Campaign vault</div>
-          <div class="addr" style="margin-top:.6rem">${esc(c.vault_address)}</div>
+          ${
+            c.vault_demo || !c.vault_address
+              ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, clippd generates a fresh Solana wallet. The creator deposits SOL there. When a clip’s views verify, that wallet pays the clipper. That wallet is the campaign vault.</p>`
+              : `<div class="addr" style="margin-top:.6rem">${esc(c.vault_address)}</div>
           <p class="meta">Expected ${esc(sol(c.expected_sol))} · quoted at ${usd(c.sol_price_usd)} / SOL</p>
-          ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the vault receives the SOL.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}
+          ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the vault receives the SOL.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}`
+          }
         </div>
       </div>
       <div class="grid grid-2" style="margin-top:1.5rem">
@@ -307,7 +334,7 @@
               <div class="clip-top">
                 <div>
                   <div class="badge badge-live">${esc(clip.platform)}</div>
-                  <div class="meta">${esc(clip.handle || "")} · ${esc(when(clip.created_at))}</div>
+                  <div class="meta">${clip.clipper_wallet ? who(clip.clipper_wallet, clip.handle || shortCa(clip.clipper_wallet)) : esc(clip.handle || "")} · ${esc(when(clip.created_at))}</div>
                 </div>
                 <a class="btn btn-ghost btn-sm" href="${esc(clip.url)}" target="_blank" rel="noopener">Open post</a>
               </div>
@@ -317,6 +344,7 @@
               .join("")}</div>`
       }`
     );
+    bindCopyCa();
 
     const form = document.getElementById("clip-form");
     if (form) {
@@ -363,7 +391,7 @@
   }
 
   function stepper(step) {
-    const names = ["Project", "Rates & platforms", "Rules & vault"];
+    const names = ["Project", "Terms & platforms", "Rules & vault"];
     return `<div class="stepper">${names
       .map((n, i) => {
         const s = i + 1;
@@ -395,19 +423,20 @@
         </div>
       </div>
       <div class="grid grid-2">
-        <div class="field"><label>Ticker *</label><input class="input" name="ticker" placeholder="$ANSEM" value="${esc(d.ticker)}"></div>
-        <div class="field"><label>Project name *</label><input class="input" name="name" placeholder="Ansem" value="${esc(d.name)}"></div>
+        <div class="field"><label>Ticker *</label><input class="input" name="ticker" placeholder="$BLIP" value="${esc(d.ticker)}"></div>
+        <div class="field"><label>Project name *</label><input class="input" name="name" placeholder="Blip" value="${esc(d.name)}"></div>
       </div>
-      <div class="field"><label>Contract address</label><input class="input mono" name="contract" placeholder="9cRC…pump" value="${esc(d.contract)}"></div>
-      <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#ansem" value="${esc(d.hashtag)}"></div>`;
+      <div class="field"><label>Contract address</label><input class="input mono" name="contract" placeholder="Your token CA" value="${esc(d.contract)}"></div>
+      <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#blip" value="${esc(d.hashtag)}"></div>`;
 
     const step2 = `
+      <p class="meta" style="margin:0 0 1rem">clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>
       <div class="grid grid-2">
-        <div class="field"><label>Total budget (USD)</label><input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"></div>
+        <div class="field"><label>Total budget (USD)</label><input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $10. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
-        <div class="field"><label>Standard rate / 1K views</label><input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" value="${esc(d.rate_per_1k_usd)}"></div>
-        <div class="field"><label>UGC rate / 1K views</label><input class="input" name="ugc_rate_per_1k_usd" type="number" min="0" step="0.05" value="${esc(d.ugc_rate_per_1k_usd)}"></div>
-        <div class="field"><label>Viral bonus (USD)</label><input class="input" name="viral_bonus_usd" type="number" min="0" step="1" value="${esc(d.viral_bonus_usd)}"></div>
+        <div class="field"><label>Pay per 1,000 views (USD)</label><input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" placeholder="e.g. 2.00" value="${esc(d.rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">What you pay a clipper from this vault for every 1,000 verified views. $2.00 → 10,000 views = $20.</p></div>
+        <div class="field"><label>UGC / face-cam pay per 1K (optional)</label><input class="input" name="ugc_rate_per_1k_usd" type="number" min="0" step="0.05" placeholder="Optional extra" value="${esc(d.ugc_rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">Only if you want to pay more for face-on-camera clips.</p></div>
+        <div class="field"><label>Viral bonus USD (optional)</label><input class="input" name="viral_bonus_usd" type="number" min="0" step="1" placeholder="Optional" value="${esc(d.viral_bonus_usd)}"></div>
         <div class="field"><label>Duration (days)</label><input class="input" name="duration_days" type="number" min="1" value="${esc(d.duration_days)}"></div>
       </div>
       <div class="field"><label>Allowed platforms</label>
@@ -423,7 +452,7 @@
       <div class="field"><label>Rules &amp; requirements</label>
         <textarea class="input" name="brief" rows="8" placeholder="• Post must include ${esc(d.hashtag || "#hashtag")}\n• Original edits only\n• No AI voice-over\n• Payout after ${esc(String(d.min_views))} views">${esc(d.brief)}</textarea>
       </div>
-      <div class="warn">On launch we generate a fresh campaign vault. You get the deposit address and the private key — shown once. Store it somewhere safe.</div>`;
+      <div class="warn">On launch we generate a Solana wallet for this campaign. You send the quoted SOL to that address. Private keys stay on the server — they are never shown in the browser.</div>`;
 
     const previewTick = d.ticker ? (d.ticker.startsWith("$") ? d.ticker.toUpperCase() : "$" + d.ticker.toUpperCase()) : "$TICKER";
 
@@ -434,7 +463,7 @@
         <div>
           <div class="mk-kicker">Campaigns</div>
           <h1 class="page-title" style="margin-top:.5rem">Launch a campaign</h1>
-          <p class="page-sub">Set your rates, generate a vault wallet, and go live.</p>
+          <p class="page-sub">You set every term. We generate a vault wallet and go live.</p>
         </div>
       </div>
       <div class="launch-grid">
@@ -463,7 +492,7 @@
             </div>
             <div class="grid grid-2" style="margin-top:1rem;gap:.5rem">
               <div class="mini-stat"><div class="label">Budget</div><div style="font-weight:800;margin-top:.2rem">${usd(d.budget_usd)}</div></div>
-              <div class="mini-stat"><div class="label">Std rate</div><div style="font-weight:800;margin-top:.2rem">$${esc(d.rate_per_1k_usd)}/1K</div></div>
+              <div class="mini-stat"><div class="label">Your rate</div><div style="font-weight:800;margin-top:.2rem">${d.rate_per_1k_usd === "" || d.rate_per_1k_usd == null ? "—" : "$" + esc(d.rate_per_1k_usd) + "/1K"}</div></div>
             </div>
             <div class="plat-row" style="margin-top:1rem">${d.platforms.map((p) => platIcon(p, 16)).join("")}</div>
           </div>
@@ -514,11 +543,16 @@
       budget.addEventListener("input", () => {
         clearTimeout(budget._t);
         budget._t = setTimeout(async () => {
-          const usdVal = Math.max(10, Number(budget.value) || 0);
+          const usdVal = Number(budget.value);
+          const solEl = document.getElementById("quote-sol");
+          const metaEl = document.getElementById("quote-meta");
+          if (!(usdVal >= 10)) {
+            if (solEl) solEl.textContent = "—";
+            if (metaEl) metaEl.textContent = "Minimum budget is $10 USD.";
+            return;
+          }
           try {
             const q = await api("/api/quote?usd=" + usdVal);
-            const solEl = document.getElementById("quote-sol");
-            const metaEl = document.getElementById("quote-meta");
             if (solEl) solEl.textContent = sol(q.sol);
             if (metaEl) metaEl.textContent = usd(q.sol_price_usd) + " / SOL · " + usd(q.usd) + " budget";
           } catch (e) {}
@@ -538,9 +572,17 @@
     if (next) {
       next.onclick = () => {
         readLaunchFields();
+        const err = document.getElementById("launch-err");
         if (d.step === 1 && (!String(d.ticker).trim() || !String(d.name).trim())) {
-          const err = document.getElementById("launch-err");
           if (err) err.textContent = "Ticker and project name are required.";
+          return;
+        }
+        if (d.step === 2 && Number(d.budget_usd) < 10) {
+          if (err) err.textContent = "Minimum budget is $10 USD.";
+          return;
+        }
+        if (d.step === 2 && !(Number(d.rate_per_1k_usd) > 0)) {
+          if (err) err.textContent = "Set how much you pay per 1,000 views.";
           return;
         }
         d.step += 1;
@@ -555,6 +597,14 @@
       errEl.textContent = "";
       try {
         const w = walletOrThrow();
+        if (Number(d.budget_usd) < 10) {
+          errEl.textContent = "Minimum budget is $10 USD.";
+          return;
+        }
+        if (!(Number(d.rate_per_1k_usd) > 0)) {
+          errEl.textContent = "Set how much you pay per 1,000 views.";
+          return;
+        }
         const created = await api("/api/campaigns", {
           method: "POST",
           body: JSON.stringify({
@@ -575,7 +625,6 @@
             creator_wallet_name: w.wallet,
           }),
         });
-        vaultCache[created.campaign.id] = created.vault;
         launchDraft.step = 1;
         go("/launch/" + created.campaign.id);
       } catch (err) {
@@ -584,73 +633,179 @@
     });
   }
 
-  async function pageFund(id) {
-    paint("launch", `<p class="mk-lead">Creating vault…</p>`);
+  async function pageFund(id, silent) {
+    clearTimeout(fundTimer);
+    const existing = document.getElementById("fund-page");
+    if (!silent && !existing) {
+      paint("launch", `<p class="mk-lead">Setting up the vault…</p>`);
+    }
     let c;
     try {
       c = (await api("/api/campaigns/" + id)).campaign;
     } catch (e) {
-      paint("launch", `<h1 class="mk-h1">Campaign not found.</h1><p class="err">${esc(e.message)}</p>`);
+      paint("launch", `<h1 class="mk-h1">Campaign not found.</h1><p class="err">${esc(e.message)}</p><p><a href="/campaigns" data-nav>← Campaigns</a></p>`);
       return;
     }
-    const vault = vaultCache[id];
+    if (path() !== "/launch/" + id) return;
     const funded = c.status === "live";
+
+    if (silent && existing && !funded) {
+      const rec = document.getElementById("fund-received");
+      if (rec) rec.textContent = "Received " + sol(c.received_sol || 0) + " · waiting on-chain";
+      fundTimer = setTimeout(() => {
+        if (path() === "/launch/" + id) pageFund(id, true);
+      }, 5000);
+      return;
+    }
+
     paint(
       "launch",
       `
-      <div class="mk-kicker">${funded ? "Live" : "Fund the vault"}</div>
-      <h1 class="mk-h1">${esc(c.ticker)}</h1>
-      <p class="mk-lead">Send exactly this SOL to the campaign wallet. We check the chain until it lands, then the campaign goes live.</p>
-      <div class="grid grid-2" style="margin-top:1.5rem">
-        <div class="card">
-          <div class="label">Send</div>
-          <div class="stat">${esc(sol(c.expected_sol))}</div>
-          <p class="meta">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL</p>
-          <div class="label" style="margin-top:1.25rem">To</div>
-          <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
-          <div class="mk-row">
-            <button class="btn btn-ghost btn-sm" id="copy-addr" type="button">Copy address</button>
-            ${c.funding_signature ? `<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+      <div id="fund-page">
+        <a href="/campaigns" data-nav class="mk-kicker">← Campaigns</a>
+        <div class="mk-kicker" style="margin-top:1rem">${funded ? "Live" : "Fund the vault"}</div>
+        <h1 class="mk-h1">${esc(c.ticker)}</h1>
+        <p class="mk-lead">Send the quoted SOL to this campaign’s Solana wallet. We watch the balance on-chain. When it lands, the campaign goes live. This page does not reload.</p>
+        <div class="grid grid-2" style="margin-top:1.5rem">
+          <div class="card">
+            <div class="label">Send</div>
+            <div class="stat">${esc(sol(c.expected_sol))}</div>
+            <p class="meta">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL</p>
+            <div class="label" style="margin-top:1.25rem">To this vault</div>
+            <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
+            <div class="mk-row" style="margin-top:1rem">
+              <button class="btn btn-ghost btn-sm" id="copy-addr" type="button">Copy address</button>
+              ${c.vault_address ? `<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+            </div>
+            <p class="meta" id="fund-received" style="margin-top:1rem">Received ${esc(sol(c.received_sol || 0))} ${funded ? "· funded" : "· waiting on-chain"}</p>
           </div>
-          <p class="meta" style="margin-top:1rem">Received ${esc(sol(c.received_sol || 0))} ${funded ? "· funded" : "· waiting on-chain"}</p>
-        </div>
-        <div class="card">
-          ${
-            funded
-              ? `<div class="ok">Vault funded. Campaign is live on the board.</div>
-                 <div class="mk-row"><a class="btn btn-primary" href="/campaigns/${esc(c.id)}" data-nav>Open campaign</a></div>`
-              : `<div class="warn">Waiting for SOL. Keep this page open — we poll Solana every few seconds.</div>`
-          }
-          ${
-            vault
-              ? `<div class="warn" style="margin-top:1rem"><b>Your keys were also saved to data/VAULT_KEYS.txt.</b> Copy them now if you want them on this machine’s clipboard. Do not share this box.</div>
-                 <div class="keys" style="margin-top:.75rem">address: ${esc(vault.address)}
-secret_base58: ${esc(vault.secret_base58)}
-secret_json: ${esc(JSON.stringify(vault.secret_json))}</div>
-                 <button class="btn btn-ghost btn-sm" style="margin-top:.75rem" id="copy-keys" type="button">Copy keys</button>`
-              : `<p class="meta" style="margin-top:1rem">Keys for this vault are in <b>data/VAULT_KEYS.txt</b> on this computer. They are not shown again in the browser after you leave this page.</p>`
-          }
+          <div class="card">
+            ${
+              funded
+                ? `<div class="ok">Vault funded. Campaign is live.</div>
+                   <div class="mk-row" style="margin-top:1rem"><a class="btn btn-primary" href="/campaigns/${esc(c.id)}" data-nav>Open campaign</a></div>`
+                : `<div class="warn">Waiting for SOL. Send from Phantom, Solflare, or any wallet. We check Solana in the background.</div>`
+            }
+            <div class="label" style="margin-top:1.25rem">How funding works</div>
+            <ol class="fund-steps">
+              <li>clippd created a new Solana wallet just for this campaign. That wallet is the vault.</li>
+              <li>You send the quoted SOL to the address on the left. Use any wallet. This is a normal SOL transfer.</li>
+              <li>Every few seconds we read the vault balance on Solana. The page stays put — only the received amount updates.</li>
+              <li>When the quoted amount lands, status flips to live and clippers can submit.</li>
+            </ol>
+            <p class="meta">Private keys never leave the server and are never shown here. Going live is real: a mainnet balance check. Clipper payouts from the vault are still done by the operator, not automatically from this page.</p>
+          </div>
         </div>
       </div>`
     );
 
     const copyAddr = document.getElementById("copy-addr");
-    if (copyAddr) copyAddr.onclick = () => navigator.clipboard.writeText(c.vault_address);
-    const copyKeys = document.getElementById("copy-keys");
-    if (copyKeys && vault) {
-      copyKeys.onclick = () =>
-        navigator.clipboard.writeText(
-          JSON.stringify({ address: vault.address, secret_base58: vault.secret_base58, secret_json: vault.secret_json }, null, 2)
-        );
-    }
+    if (copyAddr && c.vault_address) copyAddr.onclick = () => navigator.clipboard.writeText(c.vault_address);
     if (!funded) {
-      setTimeout(() => {
-        if (path() === "/launch/" + id) pageFund(id);
-      }, 4000);
+      fundTimer = setTimeout(() => {
+        if (path() === "/launch/" + id) pageFund(id, true);
+      }, 5000);
+    }
+  }
+
+  async function pageProfile(addr) {
+    paint("profile", `<p class="mk-lead">Loading profile…</p>`);
+    let data, err;
+    try {
+      data = await api("/api/users/" + encodeURIComponent(addr));
+    } catch (e) {
+      err = e.message;
+    }
+    if (!data || !data.user) {
+      paint("profile", `<h1 class="mk-h1">Not found.</h1><p class="err">${esc(err || "")}</p>`);
+      return;
+    }
+    const u = data.user;
+    const me = window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get();
+    const mine = me && me.address === u.address;
+    const handle = u.handle || "";
+    const clips = data.clips || [];
+    const camps = data.campaigns || [];
+    paint(
+      "profile",
+      `
+      <div class="page-head">
+        <div>
+          <div class="mk-kicker">Clipper</div>
+          <h1 class="page-title" style="margin-top:.5rem">${esc(handle || shortCa(u.address))}</h1>
+          <p class="page-sub mono">${esc(u.address)}</p>
+        </div>
+        ${mine ? `<button type="button" class="btn-pill" id="copy-profile">Copy wallet</button>` : ""}
+      </div>
+      <div class="stat-strip">
+        <div class="stat-cell"><div class="label">Clips submitted</div><div class="stat">${data.stats.clips}</div></div>
+        <div class="stat-cell"><div class="label">Campaigns launched</div><div class="stat">${data.stats.campaigns}</div></div>
+        <div class="stat-cell"><div class="label">Wallet</div><div class="stat" style="font-size:1.05rem">${esc((u.wallet_name || "solana").toString())}</div></div>
+      </div>
+      ${
+        mine
+          ? `<form id="handle-form" class="card" style="margin-top:1.5rem;display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
+              <div class="field" style="flex:1;min-width:180px;margin:0"><label>Display handle</label><input class="input" name="handle" placeholder="@yourhandle" value="${esc(handle)}"></div>
+              <button class="btn-pill go primary" type="submit">Save</button>
+              <div class="err" id="handle-err"></div>
+            </form>`
+          : ""
+      }
+      <h2 style="margin:2.5rem 0 1rem;font-size:1.6rem;letter-spacing:-.04em">Clips</h2>
+      ${
+        !clips.length
+          ? `<div class="empty card">No clips submitted yet.</div>`
+          : `<div class="clips">${clips
+              .map(
+                (clip) => `
+            <article class="card">
+              <div class="clip-top">
+                <div>
+                  <div class="badge badge-live">${esc(clip.platform)}</div>
+                  <div class="meta">${clip.campaign_id ? `<a href="/campaigns/${esc(clip.campaign_id)}" data-nav>${esc(clip.campaign_ticker || "Campaign")}</a>` : ""} · ${esc(when(clip.created_at))}</div>
+                </div>
+                <a class="btn btn-ghost btn-sm" href="${esc(clip.url)}" target="_blank" rel="noopener">Open post</a>
+              </div>
+              ${embedBlock(clip)}
+            </article>`
+              )
+              .join("")}</div>`
+      }
+      <h2 style="margin:2.5rem 0 1rem;font-size:1.6rem;letter-spacing:-.04em">Campaigns launched</h2>
+      ${
+        !camps.length
+          ? `<div class="empty card">No campaigns launched yet.</div>`
+          : `<div class="camp-grid">${camps.map(campaignCard).join("")}</div>`
+      }`
+    );
+    bindCopyCa();
+    const copyBtn = document.getElementById("copy-profile");
+    if (copyBtn) copyBtn.onclick = () => navigator.clipboard.writeText(u.address);
+    const form = document.getElementById("handle-form");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("handle-err");
+        if (errEl) errEl.textContent = "";
+        try {
+          await api("/api/users", {
+            method: "POST",
+            body: JSON.stringify({
+              address: u.address,
+              handle: new FormData(form).get("handle"),
+              wallet_name: me && me.wallet,
+            }),
+          });
+          pageProfile(addr);
+        } catch (ex) {
+          if (errEl) errEl.textContent = ex.message;
+        }
+      });
     }
   }
 
   async function render() {
+    clearTimeout(fundTimer);
     const p = path();
     document.title = "clippd";
     if (p === "/campaigns") return pageCampaigns();
@@ -659,6 +814,8 @@ secret_json: ${esc(JSON.stringify(vault.secret_json))}</div>
     if (p === "/launch") return pageLaunch();
     m = p.match(/^\/launch\/([^/]+)$/);
     if (m) return pageLaunch(m[1]);
+    m = p.match(/^\/u\/([^/]+)$/);
+    if (m) return pageProfile(decodeURIComponent(m[1]));
     location.replace("/");
   }
 
@@ -669,4 +826,26 @@ secret_json: ${esc(JSON.stringify(vault.secret_json))}</div>
   });
   window.addEventListener("popstate", render);
   render();
+  if (window.ClippdWallet && window.ClippdWallet.onChange) {
+    window.ClippdWallet.onChange(() => {
+      const links = document.querySelector(".mk-links");
+      if (!links) return;
+      const you = links.querySelector("[data-you]");
+      const w = window.ClippdWallet.get && window.ClippdWallet.get();
+      if (w && w.address) {
+        if (you) {
+          you.setAttribute("href", "/u/" + w.address);
+          return;
+        }
+        const a = document.createElement("a");
+        a.href = "/u/" + w.address;
+        a.setAttribute("data-nav", "");
+        a.setAttribute("data-you", "");
+        a.textContent = "You";
+        links.appendChild(a);
+      } else if (you) {
+        you.remove();
+      }
+    });
+  }
 })();

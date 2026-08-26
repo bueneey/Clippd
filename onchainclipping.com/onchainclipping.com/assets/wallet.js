@@ -305,6 +305,7 @@
         <div class="cw-menu" hidden>
           <div class="cw-menu-label">${esc(state.wallet)}</div>
           <div class="cw-menu-addr">${esc(state.address)}</div>
+          <a class="cw-menu-link" href="/u/${esc(state.address)}" data-nav data-cw-profile>View profile</a>
           <button type="button" data-cw-disconnect>Disconnect</button>
         </div>
       </div>`;

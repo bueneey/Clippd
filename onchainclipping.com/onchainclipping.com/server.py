@@ -38,6 +38,7 @@ load_env(os.path.join(ROOT, ".env"))
 
 DATA_DIR = os.path.join(ROOT, "data")
 CAMPAIGNS_PATH = os.path.join(DATA_DIR, "campaigns.json")
+USERS_PATH = os.path.join(DATA_DIR, "users.json")
 KEYS_PATH = os.path.join(DATA_DIR, "vault-keys.json")
 KEYS_TXT = os.path.join(DATA_DIR, "VAULT_KEYS.txt")
 os.chdir(ROOT)
@@ -75,12 +76,12 @@ def demo_campaign():
     x = "https://x.com/solana/status/1740000000000000000"
     return {
         "id": DEMO_ID,
-        "ticker": "$ANSEM",
-        "name": "$ANSEM",
+        "ticker": "$BLIP",
+        "name": "Blip",
         "demo": True,
-        "contract": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
-        "hashtag": "#ansem",
-        "brief": "Clip Ansem. Face-cam UGC hits the boosted rate. Original edits only — no straight reposts.",
+        "contract": "",
+        "hashtag": "#blip",
+        "brief": "Clip Blip. Original edits only — no straight reposts. This is a demo campaign, not a live token.",
         "budget_usd": 2000,
         "rate_per_1k_usd": 1.5,
         "ugc_rate_per_1k_usd": 3.5,
@@ -89,7 +90,8 @@ def demo_campaign():
         "duration_days": 10,
         "platforms": list(PLATFORMS),
         "status": "live",
-        "vault_address": "ClippdDemoVault111111111111111111111111111",
+        "vault_address": None,
+        "vault_demo": True,
         "expected_sol": 10,
         "expected_lamports": 10_000_000_000,
         "sol_price_usd": 200,
@@ -100,7 +102,7 @@ def demo_campaign():
         "funding_signature": None,
         "spent_usd": 742,
         "color": "#3B82F6",
-        "image": "/__l5e/assets-v1/050112d9-b324-41b8-af85-71eeff3c373d/ansem.avif",
+        "image": "/assets/clippdpfp.png",
         "submissions": [
             {
                 "id": "demo-tt-1",
@@ -319,7 +321,79 @@ def public_campaign(c, include_submissions=True):
     out = dict(c)
     if not include_submissions:
         out.pop("submissions", None)
+    if out.get("demo") or out.get("id") == DEMO_ID:
+        out["vault_address"] = None
+        out["vault_demo"] = True
     return out
+
+
+def load_users():
+    data = load_json(USERS_PATH, {})
+    if isinstance(data, list):
+        return {u["address"]: u for u in data if isinstance(u, dict) and u.get("address")}
+    return data if isinstance(data, dict) else {}
+
+
+def upsert_user(address, wallet_name="", handle=""):
+    address = str(address or "").strip()
+    if not valid_solana_address(address):
+        return None
+    users = load_users()
+    row = users.get(address) or {
+        "address": address,
+        "handle": "",
+        "wallet_name": "",
+        "created_at": utcnow(),
+    }
+    if wallet_name:
+        row["wallet_name"] = str(wallet_name).strip()
+    cleaned = str(handle or "").strip()
+    if cleaned:
+        row["handle"] = cleaned
+    row["last_seen"] = utcnow()
+    users[address] = row
+    save_json(USERS_PATH, users)
+    return row
+
+
+def profile_for(address):
+    address = str(address or "").strip()
+    users = load_users()
+    user = dict(users.get(address) or {"address": address, "handle": "", "wallet_name": ""})
+    user["address"] = address
+    clips = []
+    launched = []
+    for c in list_campaigns():
+        if c.get("creator_wallet") == address:
+            launched.append(public_campaign(c, include_submissions=False))
+        for clip in c.get("submissions") or []:
+            if clip.get("clipper_wallet") != address:
+                continue
+            clips.append(
+                {
+                    "id": clip.get("id"),
+                    "url": clip.get("url"),
+                    "platform": clip.get("platform"),
+                    "handle": clip.get("handle"),
+                    "created_at": clip.get("created_at"),
+                    "status": clip.get("status"),
+                    "embed": clip.get("embed"),
+                    "campaign_id": c.get("id"),
+                    "campaign_ticker": c.get("ticker"),
+                    "campaign_name": c.get("name"),
+                    "campaign_image": c.get("image"),
+                    "campaign_color": c.get("color"),
+                }
+            )
+            if clip.get("handle") and not user.get("handle"):
+                user["handle"] = clip.get("handle")
+    clips.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return {
+        "user": user,
+        "clips": clips,
+        "campaigns": launched,
+        "stats": {"clips": len(clips), "campaigns": len(launched)},
+    }
 
 
 def stored_campaigns():
@@ -413,6 +487,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if path == "/api/campaigns":
                 return self._create_campaign()
+            if path == "/api/users":
+                return self._update_user()
             m = re.match(r"^/api/campaigns/([^/]+)/clips$", path)
             if m:
                 return self._add_clip(m.group(1))
@@ -428,6 +504,9 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/quote":
             try:
                 usd = float((qs.get("usd") or ["10"])[0])
+                if usd < MIN_BUDGET_USD:
+                    self._json(400, {"error": "Minimum budget is $%s USD" % int(MIN_BUDGET_USD)})
+                    return
                 self._json(200, quote_payload(usd))
             except Exception as e:
                 self._json(502, {"error": str(e)})
@@ -474,13 +553,29 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {"campaign": public_campaign(c)})
             return
 
+        m = re.match(r"^/api/users/([^/]+)/?$", path)
+        if m:
+            addr = m.group(1)
+            if not valid_solana_address(addr):
+                self._json(400, {"error": "Not a Solana address"})
+                return
+            with LOCK:
+                self._json(200, profile_for(addr))
+            return
+
         if path in ("/dashboard", "/dashboard/"):
             self.send_response(302)
             self.send_header("Location", "/launch")
             self.end_headers()
             return
 
-        app_routes = path == "/launch" or path.startswith("/launch/") or path == "/campaigns" or path.startswith("/campaigns/")
+        app_routes = (
+            path == "/launch"
+            or path.startswith("/launch/")
+            or path == "/campaigns"
+            or path.startswith("/campaigns/")
+            or path.startswith("/u/")
+        )
         local = self.translate_path(self.path)
         is_asset = path.startswith("/assets/") or path.startswith("/__l5e/") or path.lower().endswith(
             (".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".avif", ".gif", ".svg", ".woff", ".woff2", ".mp4", ".map")
@@ -585,17 +680,13 @@ class Handler(SimpleHTTPRequestHandler):
             keys.insert(0, key_row)
             save_json(KEYS_PATH, keys)
             write_keys_txt(keys, campaigns)
+            upsert_user(creator, creator_wallet_name)
 
         self._json(
             201,
             {
                 "campaign": public_campaign(campaign),
-                "vault": {
-                    "address": wallet["address"],
-                    "secret_base58": wallet["secret_base58"],
-                    "secret_json": wallet["secret_json"],
-                    "keys_file": "data/VAULT_KEYS.txt",
-                },
+                "vault": {"address": wallet["address"]},
                 "quote": q,
             },
         )
@@ -644,7 +735,17 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 rows[idx] = c
             save_json(CAMPAIGNS_PATH, rows)
+            upsert_user(clipper, clipper_wallet_name, clip.get("handle"))
         self._json(201, {"clip": clip, "campaign": public_campaign(c)})
+
+    def _update_user(self):
+        body = self._read_json()
+        address = str(body.get("address") or body.get("wallet") or "").strip()
+        if not valid_solana_address(address):
+            return self._json(400, {"error": "Connect a Solana wallet first."})
+        with LOCK:
+            user = upsert_user(address, body.get("wallet_name") or "", body.get("handle") or "")
+            self._json(200, profile_for(address) if user else {"error": "Could not save profile"})
 
 
 def detect_platform(url):

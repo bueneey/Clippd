@@ -33,15 +33,20 @@
     "creator_wallet": "9HduN1ee6LJXzZXevZ3FQHBPmGPJhsQPjQGLKMepJRRU",
     "creator_wallet_name": "phantom",
     "submissions": [],
-    "balance_checked_at": "2026-08-26T05:05:05.022627+00:00"
+    "balance_checked_at": "2026-08-26T05:25:13.689460+00:00",
+    "quoted_at": "2026-08-26T05:25:11.491780+00:00",
+    "vault_onchain": false,
+    "net_received_sol": 0.0,
+    "remaining_lamports": 5173305742,
+    "remaining_sol": 5.173305742
   },
   {
     "id": "ansem",
     "ticker": "$CLIPPD",
-    "name": "clippd",
+    "name": "Clippd",
     "demo": true,
     "contract": "",
-    "hashtag": "#clippd",
+    "hashtag": "#Clippd",
     "brief": "Clip $CLIPPD. Original edits only \u2014 no straight reposts.",
     "budget_usd": 2000,
     "rate_per_1k_usd": 1.5,

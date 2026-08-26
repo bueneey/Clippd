@@ -1,4 +1,4 @@
-# clippd
+# Clippd
 
 Open marketplace for memecoin clipping. Creators fund a campaign in SOL. Anyone clips. Views get verified. Clippers get paid from the vault.
 

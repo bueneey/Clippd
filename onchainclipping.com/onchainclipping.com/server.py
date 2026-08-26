@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""clippd local marketplace server — campaigns, Solana vaults, deposit checks."""
+"""Clippd marketplace server — campaigns, Solana vaults, deposit checks."""
 from __future__ import print_function
 
 import json
@@ -9,13 +9,18 @@ import re
 import threading
 import time
 import uuid
+import base64
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-from nacl.signing import SigningKey
+from solders.hash import Hash
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.system_program import TransferParams, transfer
+from solders.transaction import Transaction
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -77,10 +82,10 @@ def demo_campaign():
     return {
         "id": DEMO_ID,
         "ticker": "$CLIPPD",
-        "name": "clippd",
+        "name": "Clippd",
         "demo": True,
         "contract": "",
-        "hashtag": "#clippd",
+        "hashtag": "#Clippd",
         "brief": "Clip $CLIPPD. Original edits only — no straight reposts.",
         "budget_usd": 2000,
         "rate_per_1k_usd": 1.5,
@@ -175,8 +180,8 @@ def b58decode(s):
 
 def valid_solana_address(addr):
     try:
-        raw = b58decode(str(addr or "").strip())
-        return len(raw) == 32
+        Pubkey.from_string(str(addr or "").strip())
+        return True
     except Exception:
         return False
 
@@ -206,12 +211,20 @@ def save_json(path, data):
 def write_keys_txt(keys, campaigns):
     campaigns_by_id = {c["id"]: c for c in campaigns}
     lines = [
-        "clippd campaign vault keys",
+        "Clippd campaign vault keys",
         "KEEP THIS FILE SECRET.",
-        "Each campaign has its own Solana wallet. Import secret_json in Phantom (legacy private key)",
-        "or secret_base58 in a Solana CLI/wallet that accepts a 64-byte secret.",
+        "One campaign_id maps to exactly one Solana vault address.",
         "",
+        "INDEX",
+        "%-36s  %-14s  %s" % ("campaign_id", "ticker", "vault"),
     ]
+    for k in keys:
+        c = campaigns_by_id.get(k["campaign_id"], {})
+        lines.append(
+            "%-36s  %-14s  %s"
+            % (k["campaign_id"], c.get("ticker") or k.get("ticker") or "", k["address"])
+        )
+    lines.append("")
     for k in keys:
         c = campaigns_by_id.get(k["campaign_id"], {})
         lines.extend(
@@ -221,6 +234,7 @@ def write_keys_txt(keys, campaigns):
                 "campaign_id:     %s" % k["campaign_id"],
                 "created:         %s" % k.get("created_at", ""),
                 "status:          %s" % c.get("status", ""),
+                "onchain:         %s" % c.get("vault_onchain", ""),
                 "budget_usd:      $%s" % c.get("budget_usd", ""),
                 "expected_sol:    %s" % c.get("expected_sol", ""),
                 "received_sol:    %s" % c.get("received_sol", 0),
@@ -236,20 +250,91 @@ def write_keys_txt(keys, campaigns):
 
 
 def generate_wallet():
-    sk = SigningKey.generate()
-    seed = sk.encode()
-    pub = bytes(sk.verify_key)
-    secret64 = seed + pub
+    kp = Keypair()
+    secret64 = bytes(kp)
     return {
-        "address": b58encode(pub),
+        "address": str(kp.pubkey()),
         "secret_base58": b58encode(secret64),
         "secret_json": list(secret64),
     }
 
 
+def operator_keypair():
+    raw = (os.environ.get("OPERATOR_SECRET") or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.startswith("["):
+            return Keypair.from_bytes(bytes(json.loads(raw)))
+        return Keypair.from_base58_string(raw)
+    except Exception:
+        try:
+            return Keypair.from_bytes(b58decode(raw))
+        except Exception:
+            return None
+
+
+def account_onchain(address):
+    try:
+        result = rpc("getAccountInfo", [address, {"encoding": "base64", "commitment": "confirmed"}])
+        val = result.get("value") if isinstance(result, dict) else None
+        if not val:
+            return False, 0
+        return True, int(val.get("lamports") or 0)
+    except Exception:
+        return False, 0
+
+
+RENT_FALLBACK = 890880
+
+
+def open_vault_onchain(address):
+    exists, lamports = account_onchain(address)
+    if exists:
+        return {"vault_onchain": True, "seed_lamports": 0, "open_signature": None}
+    payer = operator_keypair()
+    if not payer:
+        return {
+            "vault_onchain": False,
+            "seed_lamports": 0,
+            "open_signature": None,
+            "open_error": "OPERATOR_SECRET is not set. Vault key exists; the account appears on Solana when the first SOL arrives.",
+        }
+    try:
+        rent = int(rpc("getMinimumBalanceForRentExemption", [0]) or RENT_FALLBACK)
+    except Exception:
+        rent = RENT_FALLBACK
+    try:
+        bh = rpc("getLatestBlockhash", [{"commitment": "confirmed"}])
+        blockhash = Hash.from_string(bh["value"]["blockhash"])
+        dest = Pubkey.from_string(address)
+        ix = transfer(TransferParams(from_pubkey=payer.pubkey(), to_pubkey=dest, lamports=rent))
+        tx = Transaction.new_signed_with_payer([ix], payer.pubkey(), [payer], blockhash)
+        sig = rpc(
+            "sendTransaction",
+            [
+                base64.b64encode(bytes(tx)).decode("ascii"),
+                {"encoding": "base64", "preflightCommitment": "confirmed"},
+            ],
+        )
+        for _ in range(8):
+            time.sleep(0.4)
+            exists, lamports = account_onchain(address)
+            if exists:
+                break
+        return {
+            "vault_onchain": bool(exists),
+            "seed_lamports": rent,
+            "open_signature": sig,
+            "open_error": None if exists else "Rent transfer sent; waiting for confirmation.",
+        }
+    except Exception as e:
+        return {"vault_onchain": False, "seed_lamports": 0, "open_signature": None, "open_error": str(e)}
+
+
 def http_json(url, payload=None, timeout=12):
     body = None
-    headers = {"Accept": "application/json", "User-Agent": "clippd/1.0"}
+    headers = {"Accept": "application/json", "User-Agent": "Clippd/1.0"}
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -319,6 +404,8 @@ def slugify(ticker):
 
 def public_campaign(c, include_submissions=True):
     out = dict(c)
+    for k in ("secret_base58", "secret_json", "secret", "open_error"):
+        out.pop(k, None)
     if not include_submissions:
         out.pop("submissions", None)
     if out.get("demo") or out.get("id") == DEMO_ID:
@@ -444,13 +531,34 @@ def refresh_deposit(c):
         return c
     if c.get("status") != "live":
         refresh_quote(c)
-    lamports = get_balance_lamports(c["vault_address"])
-    sol = lamports / 1e9
+    onchain, lamports = account_onchain(c["vault_address"])
+    if not onchain and c.get("status") != "live" and not c.get("open_signature"):
+        opened = open_vault_onchain(c["vault_address"])
+        if opened.get("open_signature"):
+            c["open_signature"] = opened["open_signature"]
+        if opened.get("seed_lamports"):
+            c["seed_lamports"] = int(opened["seed_lamports"])
+        onchain = bool(opened.get("vault_onchain"))
+        if onchain:
+            onchain, lamports = account_onchain(c["vault_address"])
+    if not onchain:
+        try:
+            lamports = get_balance_lamports(c["vault_address"])
+        except Exception:
+            lamports = int(c.get("received_lamports") or 0)
+        onchain = lamports > 0
+    c["vault_onchain"] = bool(onchain)
+    seed = int(c.get("seed_lamports") or 0)
+    net = max(0, lamports - seed)
     c["received_lamports"] = lamports
-    c["received_sol"] = round(sol, 9)
+    c["received_sol"] = round(lamports / 1e9, 9)
+    c["net_received_sol"] = round(net / 1e9, 9)
     c["balance_checked_at"] = utcnow()
     expected = int(c.get("expected_lamports") or 0)
-    if c.get("status") != "live" and expected and lamports >= max(0, expected - 5000):
+    due = max(0, expected - net)
+    c["remaining_lamports"] = due
+    c["remaining_sol"] = round(due / 1e9, 9)
+    if c.get("status") != "live" and expected and net >= max(0, expected - 5000):
         c["status"] = "live"
         c["funded_at"] = utcnow()
         c["funding_signature"] = latest_sig(c["vault_address"])
@@ -634,6 +742,7 @@ class Handler(SimpleHTTPRequestHandler):
 
         q = quote_payload(budget_usd)
         wallet = generate_wallet()
+        opened = open_vault_onchain(wallet["address"])
         cid = "%s-%s" % (slugify(ticker), uuid.uuid4().hex[:6])
         ugc = body.get("ugc_rate_per_1k_usd")
         viral = body.get("viral_bonus_usd")
@@ -662,11 +771,17 @@ class Handler(SimpleHTTPRequestHandler):
             "platforms": platforms,
             "status": "awaiting_deposit",
             "vault_address": wallet["address"],
+            "vault_onchain": bool(opened.get("vault_onchain")),
+            "seed_lamports": int(opened.get("seed_lamports") or 0),
+            "open_signature": opened.get("open_signature"),
             "expected_sol": q["sol"],
             "expected_lamports": q["lamports"],
             "sol_price_usd": q["sol_price_usd"],
             "received_sol": 0,
             "received_lamports": 0,
+            "net_received_sol": 0,
+            "remaining_sol": q["sol"],
+            "remaining_lamports": q["lamports"],
             "created_at": utcnow(),
             "funded_at": None,
             "funding_signature": None,
@@ -687,6 +802,8 @@ class Handler(SimpleHTTPRequestHandler):
             "created_at": campaign["created_at"],
             "expected_sol": q["sol"],
             "budget_usd": campaign["budget_usd"],
+            "vault_onchain": campaign.get("vault_onchain"),
+            "open_signature": campaign.get("open_signature"),
         }
         with LOCK:
             campaigns = load_json(CAMPAIGNS_PATH, [])
@@ -803,7 +920,9 @@ if __name__ == "__main__":
     host = os.environ.get("HOST") or "0.0.0.0"
     site = (os.environ.get("SITE_URL") or "https://getclippd.fun").rstrip("/")
     server = ThreadingHTTPServer((host, port), Handler)
-    print("clippd marketplace  http://%s:%s" % (host, port), flush=True)
+    print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
     print("vault keys          %s" % KEYS_TXT, flush=True)
+    if not operator_keypair():
+        print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)
     server.serve_forever()

@@ -64,10 +64,18 @@
       return;
     }
     if (send) send.textContent = sol(q.sol);
+    const need = document.getElementById("fund-need");
+    if (need && q.sol != null) need.textContent = sol(q.sol);
     if (meta) {
       meta.textContent = document.getElementById("fund-price")
         ? usd(q.usd) + " at " + usd(q.sol_price_usd) + " / SOL · live"
         : usd(q.sol_price_usd) + " / SOL · " + usd(q.usd) + " budget · live";
+    }
+    const rem = document.getElementById("fund-remaining");
+    const page = document.getElementById("fund-page");
+    if (rem && page && q.lamports != null) {
+      const net = Number(page.getAttribute("data-net-lamports") || 0);
+      rem.textContent = sol(Math.max(0, q.lamports - net) / 1e9);
     }
   }
   async function fetchQuote(usdVal) {
@@ -98,7 +106,7 @@
     return `
       <header class="mk-nav">
         <div class="mk-nav-inner">
-          <a class="mk-brand" href="/"><img src="/assets/clippdpfp.png" alt="clippd" width="36" height="36"/>clippd</a>
+          <a class="mk-brand" href="/"><img src="/assets/clippdpfp.png" alt="Clippd" width="36" height="36"/>Clippd</a>
           <div class="mk-sep"></div>
           <nav class="mk-links">
             <a href="/">Home</a>
@@ -111,7 +119,7 @@
             }
           </nav>
           <div class="mk-nav-right">
-            <a class="mk-x" href="https://x.com/clippdpump" target="_blank" rel="noopener" aria-label="clippd on X">
+            <a class="mk-x" href="https://x.com/clippdpump" target="_blank" rel="noopener" aria-label="Clippd on X">
               <img src="/assets/platforms/x.svg" alt="" width="14" height="14"/>
             </a>
             <span data-wallet-slot></span>
@@ -337,10 +345,12 @@
           <div class="label">Campaign vault</div>
           ${
             c.vault_demo || !c.vault_address
-              ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, clippd generates a fresh Solana wallet. The creator deposits SOL there. When a clip’s views verify, that wallet pays the clipper. That wallet is the campaign vault.</p>`
+              ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, Clippd creates a Solana vault for that campaign only. The creator sends SOL there. When a clip’s views verify, that vault pays the clipper.</p>`
               : `<div class="addr" style="margin-top:.6rem">${esc(c.vault_address)}</div>
-          <p class="meta">Expected ${esc(sol(c.expected_sol))} · quoted at ${usd(c.sol_price_usd)} / SOL</p>
-          ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the vault receives the SOL.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}`
+          <p class="meta">Campaign ID ${esc(c.id)} · vault for ${esc(c.ticker)} only</p>
+          <p class="meta">${c.vault_onchain ? "On Solana" : "Opening on Solana"} · balance ${esc(sol(c.received_sol || 0))} · counted ${esc(sol(c.net_received_sol != null ? c.net_received_sol : c.received_sol || 0))}</p>
+          <p class="meta">Need ${esc(sol(c.expected_sol))} · quoted at ${usd(c.sol_price_usd)} / SOL</p>
+          ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the counted SOL covers the live quote.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}`
           }
         </div>
       </div>
@@ -460,7 +470,7 @@
       <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#coin" value="${esc(d.hashtag)}"></div>`;
 
     const step2 = `
-      <p class="meta" style="margin:0 0 1rem">clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>
+      <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>
       <div class="grid grid-2">
         <div class="field"><label>Total budget (USD)</label><input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $10. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
@@ -482,7 +492,7 @@
       <div class="field"><label>Rules &amp; requirements</label>
         <textarea class="input" name="brief" rows="8" placeholder="• Post must include ${esc(d.hashtag || "#hashtag")}\n• Original edits only\n• No AI voice-over\n• Payout after ${esc(String(d.min_views))} views">${esc(d.brief)}</textarea>
       </div>
-      <div class="warn">On launch we generate a Solana wallet for this campaign. You send the quoted SOL to that address. Private keys stay on the server — they are never shown in the browser.</div>`;
+      <div class="warn">On launch Clippd creates a real Solana vault for this campaign and saves it against this campaign ID. You send the quoted SOL to that address.</div>`;
 
     const previewTick = d.ticker ? (d.ticker.startsWith("$") ? d.ticker.toUpperCase() : "$" + d.ticker.toUpperCase()) : "$TICKER";
 
@@ -493,7 +503,7 @@
         <div>
           <div class="mk-kicker">Campaigns</div>
           <h1 class="page-title" style="margin-top:.5rem">Launch a campaign</h1>
-          <p class="page-sub">You set every term. We generate a vault wallet and go live.</p>
+          <p class="page-sub">You set every term. Clippd creates a Solana vault for this campaign and goes live when the SOL lands.</p>
         </div>
       </div>
       <div class="launch-grid">
@@ -505,7 +515,7 @@
             ${
               d.step < 3
                 ? `<button type="button" class="btn-pill go" id="launch-next">Continue →</button>`
-                : `<button type="submit" class="btn-pill go primary" id="launch-submit">Generate vault &amp; launch</button>`
+                : `<button type="submit" class="btn-pill go primary" id="launch-submit">Create vault &amp; launch</button>`
             }
           </div>
           <div class="err" id="launch-err"></div>
@@ -674,11 +684,38 @@
     }
     if (path() !== "/launch/" + id) return;
     const funded = c.status === "live";
+    const seed = Number(c.seed_lamports || 0) / 1e9;
+    const net = c.net_received_sol != null ? Number(c.net_received_sol) : Math.max(0, Number(c.received_sol || 0) - seed);
+    const remaining = c.remaining_sol != null ? Number(c.remaining_sol) : Math.max(0, Number(c.expected_sol || 0) - net);
+    const onchain = !!c.vault_onchain;
+
+    function paintFundNumbers() {
+      const page = document.getElementById("fund-page");
+      if (page) page.setAttribute("data-net-lamports", String(Math.round(net * 1e9)));
+      const rec = document.getElementById("fund-received");
+      if (rec) {
+        rec.textContent = funded
+          ? "Counted " + sol(net) + " · funded"
+          : "Counted " + sol(net) + " of " + sol(c.expected_sol) + " · " + sol(remaining) + " still due";
+      }
+      const need = document.getElementById("fund-need");
+      if (need) need.textContent = sol(c.expected_sol);
+      const bal = document.getElementById("fund-onchain-balance");
+      if (bal) bal.textContent = sol(c.received_sol || 0);
+      const counted = document.getElementById("fund-counted");
+      if (counted) counted.textContent = sol(net);
+      const rem = document.getElementById("fund-remaining");
+      if (rem) rem.textContent = funded ? sol(0) : sol(remaining);
+      const badge = document.getElementById("fund-onchain-badge");
+      if (badge) {
+        badge.className = "fund-badge " + (onchain ? "on" : "off");
+        badge.textContent = onchain ? "On Solana" : "Opening on Solana";
+      }
+      paintQuote({ sol: c.expected_sol, usd: c.budget_usd, sol_price_usd: c.sol_price_usd, lamports: c.expected_lamports });
+    }
 
     if (silent && existing && !funded) {
-      const rec = document.getElementById("fund-received");
-      if (rec) rec.textContent = "Received " + sol(c.received_sol || 0) + " · waiting on-chain";
-      paintQuote({ sol: c.expected_sol, usd: c.budget_usd, sol_price_usd: c.sol_price_usd });
+      paintFundNumbers();
       fundTimer = setTimeout(() => {
         if (path() === "/launch/" + id) pageFund(id, true);
       }, 5000);
@@ -688,23 +725,37 @@
     paint(
       "launch",
       `
-      <div id="fund-page">
+      <div id="fund-page" data-net-lamports="${esc(Math.round(net * 1e9))}">
         <a href="/campaigns" data-nav class="mk-kicker">← Campaigns</a>
         <div class="mk-kicker" style="margin-top:1rem">${funded ? "Live" : "Fund the vault"}</div>
         <h1 class="mk-h1">${esc(c.ticker)}</h1>
-        <p class="mk-lead">Send the quoted SOL to this campaign’s Solana wallet. We watch the balance on-chain. When it lands, the campaign goes live. This page does not reload.</p>
+        <p class="mk-lead">Send the quoted SOL to this campaign’s vault. Clippd checks the mainnet balance and the exact amount. When it matches, the campaign goes live.</p>
         <div class="grid grid-2" style="margin-top:1.5rem">
           <div class="card">
             <div class="label">Send</div>
             <div class="stat" id="fund-send">${esc(sol(c.expected_sol))}</div>
             <p class="meta" id="fund-price">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL · live</p>
-            <div class="label" style="margin-top:1.25rem">To this vault</div>
+            <div class="label" style="margin-top:1.25rem">This campaign’s vault</div>
             <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
             <div class="mk-row" style="margin-top:1rem">
               <button class="btn btn-ghost btn-sm" id="copy-addr" type="button">Copy address</button>
               ${c.vault_address ? `<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+              <span id="fund-onchain-badge" class="fund-badge ${onchain ? "on" : "off"}">${onchain ? "On Solana" : "Opening on Solana"}</span>
             </div>
-            <p class="meta" id="fund-received" style="margin-top:1rem">Received ${esc(sol(c.received_sol || 0))} ${funded ? "· funded" : "· waiting on-chain"}</p>
+            <div class="fund-ledger">
+              <div class="fund-ledger-row"><span>Campaign ID</span><strong class="mono">${esc(c.id)}</strong></div>
+              <div class="fund-ledger-row"><span>Coin</span><strong>${esc(c.ticker)}${c.name ? " · " + esc(c.name) : ""}</strong></div>
+              <div class="fund-ledger-row"><span>Need (live quote)</span><strong id="fund-need">${esc(sol(c.expected_sol))}</strong></div>
+              <div class="fund-ledger-row"><span>On-chain balance</span><strong id="fund-onchain-balance">${esc(sol(c.received_sol || 0))}</strong></div>
+              <div class="fund-ledger-row"><span>Counted toward campaign</span><strong id="fund-counted">${esc(sol(net))}</strong></div>
+              <div class="fund-ledger-row"><span>Still due</span><strong id="fund-remaining">${esc(funded ? sol(0) : sol(remaining))}</strong></div>
+            </div>
+            <p class="meta" id="fund-received" style="margin-top:1rem">${
+              funded
+                ? "Counted " + sol(net) + " · funded"
+                : "Counted " + sol(net) + " of " + sol(c.expected_sol) + " · " + sol(remaining) + " still due"
+            }</p>
+            ${seed > 0 ? `<p class="meta">A tiny rent amount to open the account is not counted as funding.</p>` : ""}
           </div>
           <div class="card">
             ${
@@ -714,13 +765,12 @@
                 : `<div class="warn">Waiting for SOL. Send from Phantom, Solflare, or any wallet. We check Solana in the background.</div>`
             }
             <div class="label" style="margin-top:1.25rem">How funding works</div>
-            <ol class="fund-steps">
-              <li>clippd created a new Solana wallet just for this campaign. That wallet is the vault.</li>
-              <li>You send the live quoted SOL to the address on the left. The USD→SOL amount refreshes every 10 seconds.</li>
-              <li>Every few seconds we read the vault balance on Solana. The page stays put — only the received amount and quote update.</li>
-              <li>When the current quoted amount lands, status flips to live and clippers can submit.</li>
-            </ol>
-            <p class="meta">Private keys never leave the server and are never shown here. Going live is real: a mainnet balance check. Clipper payouts from the vault are still done by the operator, not automatically from this page.</p>
+            <ul class="fund-steps">
+              <li>Clippd creates one Solana vault per campaign. This campaign ID is locked to the address on the left. A different campaign gets a different vault.</li>
+              <li>You send the live quoted SOL to that vault. The USD→SOL amount refreshes every 10 seconds.</li>
+              <li>Every few seconds Clippd reads the vault on Solana mainnet and checks the exact amount against the live quote.</li>
+              <li>When counted SOL covers the current quote, the campaign goes live and clippers can submit.</li>
+            </ul>
           </div>
         </div>
       </div>`
@@ -838,7 +888,7 @@
     clearTimeout(fundTimer);
     stopQuotePoll();
     const p = path();
-    document.title = "clippd";
+    document.title = "Clippd";
     if (p === "/campaigns") return pageCampaigns();
     let m = p.match(/^\/campaigns\/([^/]+)$/);
     if (m) return pageCampaign(m[1]);

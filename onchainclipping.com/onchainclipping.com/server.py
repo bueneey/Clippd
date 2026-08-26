@@ -13,7 +13,7 @@ import base64
 import hashlib
 import hmac
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
@@ -578,6 +578,38 @@ def validate_handle(raw, except_address=""):
     return handle
 
 
+HANDLE_CHANGE_HOURS = 24
+
+
+def parse_iso(raw):
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except Exception:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def handle_unlock_at(row):
+    at = parse_iso((row or {}).get("handle_changed_at"))
+    if not at:
+        return None
+    return at + timedelta(hours=HANDLE_CHANGE_HOURS)
+
+
+def handle_can_change(row):
+    until = handle_unlock_at(row)
+    if not until:
+        return True, None
+    now = datetime.now(timezone.utc)
+    if now >= until:
+        return True, None
+    return False, until.isoformat()
+
+
 def sanitize_bio(raw):
     text = re.sub(r"\s+", " ", str(raw or "")).strip()
     if len(text) > 160:
@@ -639,7 +671,21 @@ def upsert_user(address, wallet_name="", handle=None, bio=None, avatar=None):
     if wallet_name:
         row["wallet_name"] = str(wallet_name).strip()
     if handle is not None:
-        row["handle"] = validate_handle(handle, address)
+        next_handle = validate_handle(handle, address)
+        current = normalize_handle(row.get("handle") or "")
+        if next_handle.lower() != current.lower():
+            ok, until = handle_can_change(row)
+            if not ok:
+                when = until
+                try:
+                    when = datetime.fromisoformat(until).strftime("%b %d, %Y %H:%M UTC")
+                except Exception:
+                    pass
+                raise ValueError("Usernames are unique, and you can change yours once per day. Next change %s." % when)
+            row["handle"] = next_handle
+            row["handle_changed_at"] = utcnow()
+        elif next_handle:
+            row["handle"] = current or next_handle
     if bio is not None:
         row["bio"] = sanitize_bio(bio)
     if avatar:
@@ -659,6 +705,9 @@ def profile_for(address):
     user["address"] = address
     user.setdefault("bio", "")
     user.setdefault("avatar", "")
+    ok, until = handle_can_change(user)
+    user["handle_locked"] = not ok
+    user["handle_unlock_at"] = until
     clips = []
     launched = []
     for c in list_campaigns():

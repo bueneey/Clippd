@@ -273,7 +273,10 @@ input, textarea, select {
   padding: .75rem .85rem;
   font: inherit;
 }
-textarea { min-height: 6.5rem; resize: vertical; }
+input:disabled, textarea:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
 .checks { display: flex; flex-wrap: wrap; gap: .5rem; }
 .checks label {
   display: inline-flex;

@@ -1017,6 +1017,8 @@
     const camps = data.campaigns || [];
     const backTo = safeFrom(new URLSearchParams(location.search).get("from"));
     const title = handle ? "@" + handle : shortCa(u.address);
+    const handleLocked = !!u.handle_locked;
+    const unlockLabel = u.handle_unlock_at ? when(u.handle_unlock_at) : "";
     let pendingAvatar = "";
     paint(
       "profile",
@@ -1057,7 +1059,7 @@
           <div class="cw-head">
             <div>
               <h3 id="profile-edit-title">Edit profile</h3>
-              <p class="cw-lead">Username, bio, and photo. Wallet stays the same.</p>
+              <p class="cw-lead">Usernames are unique. You can change yours once per day.</p>
             </div>
             <button type="button" class="cw-x" data-profile-close aria-label="Close">×</button>
           </div>
@@ -1071,8 +1073,12 @@
               <div style="flex:1;min-width:200px">
                 <div class="field">
                   ${fieldHead("Username", "handle")}
-                  <input class="input" name="handle" maxlength="20" placeholder="yourname" value="${esc(handle)}" autocomplete="username">
-                  <p class="handle-hint" id="handle-hint">${esc(handleHint(handle))}</p>
+                  <input class="input" name="handle" maxlength="20" placeholder="yourname" value="${esc(handle)}" autocomplete="username"${handleLocked ? " disabled" : ""}>
+                  <p class="handle-hint" id="handle-hint">${
+                    handleLocked
+                      ? esc("Once per day. You can change it again " + (unlockLabel || "tomorrow") + ".")
+                      : esc(handleHint(handle) || "Unique. Letters, numbers, underscores. Once per day.")
+                  }</p>
                 </div>
                 <div class="field" style="margin-bottom:0">
                   ${fieldHead("Bio", "bio")}
@@ -1159,7 +1165,7 @@
     }
     const handleInput = document.querySelector("#profile-form [name='handle']");
     const hint = document.getElementById("handle-hint");
-    if (handleInput && hint) {
+    if (handleInput && hint && !handleLocked) {
       handleInput.addEventListener("input", () => {
         hint.textContent = handleHint(handleInput.value) || "Looks good.";
       });
@@ -1170,8 +1176,8 @@
         e.preventDefault();
         const errEl = document.getElementById("profile-err");
         if (errEl) errEl.textContent = "";
-        const nextHandle = normalizeHandle(new FormData(form).get("handle"));
-        const hintText = handleHint(nextHandle);
+        const nextHandle = handleLocked ? handle : normalizeHandle(new FormData(form).get("handle"));
+        const hintText = handleLocked ? "" : handleHint(nextHandle);
         if (nextHandle && hintText) {
           if (errEl) errEl.textContent = hintText;
           return;
@@ -1179,10 +1185,10 @@
         try {
           const body = {
             address: u.address,
-            handle: nextHandle,
             bio: new FormData(form).get("bio"),
             wallet_name: me && me.wallet,
           };
+          if (!handleLocked) body.handle = nextHandle;
           if (pendingAvatar) body.avatar = pendingAvatar;
           await api("/api/users", { method: "POST", body: JSON.stringify(body) });
           pageProfile(addr);

@@ -844,7 +844,7 @@
           <div>
             <div class="mk-kicker">Operator</div>
             <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
-            <p class="page-sub">Private keys for every campaign. Password only. This page is not in the public nav.</p>
+            <p class="page-sub">Private keys for live campaign vaults. Password only. This page is not in the public nav.</p>
             <p class="meta">This list is only the vaults stored on <strong>${esc(location.host)}</strong>. Campaigns launched on another host are a different list.</p>
           </div>
         </div>
@@ -882,7 +882,7 @@
       paint("", `<h1 class="mk-h1">Could not load vaults.</h1><p class="err">${esc(data.error || "")}</p>`);
       return;
     }
-    const vaults = data.vaults || [];
+    const vaults = (data.vaults || []).filter((v) => v.status === "live");
     paint(
       "",
       `
@@ -890,14 +890,14 @@
         <div>
           <div class="mk-kicker">Operator</div>
           <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
-          <p class="page-sub">Every campaign’s public and private key. Only this password unlocks it.</p>
+          <p class="page-sub">Live campaigns only. Awaiting-deposit vaults stay off this page.</p>
           <p class="meta">Vaults on <strong>${esc(location.host)}</strong>. Localhost and getclippd.fun do not share keys.</p>
         </div>
         <button type="button" class="btn-pill" id="ops-lock">Lock</button>
       </div>
       ${
         !vaults.length
-          ? `<div class="empty card">No campaign vaults yet.</div>`
+          ? `<div class="empty card">No live campaign vaults.</div>`
           : vaults
               .map(
                 (v) => `

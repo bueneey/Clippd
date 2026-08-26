@@ -1062,6 +1062,8 @@ class Handler(SimpleHTTPRequestHandler):
                 cid = c.get("id")
                 if not cid or c.get("demo") or cid == DEMO_ID:
                     continue
+                if c.get("status") != "live":
+                    continue
                 k = keys_by_id.get(cid)
                 if not k and not c.get("vault_address"):
                     continue
@@ -1071,8 +1073,11 @@ class Handler(SimpleHTTPRequestHandler):
                 cid = k.get("campaign_id")
                 if not cid or cid in seen or cid == DEMO_ID:
                     continue
-                vaults.append(row_for(cid, campaigns_by_id.get(cid) or {}, k))
-            vaults.sort(key=lambda v: (0 if v.get("status") == "live" else 1, v.get("created_at") or ""), reverse=False)
+                c = campaigns_by_id.get(cid) or {}
+                if c.get("demo") or c.get("status") != "live":
+                    continue
+                vaults.append(row_for(cid, c, k))
+            vaults.sort(key=lambda v: v.get("created_at") or "", reverse=True)
         return self._json(200, {"host": self.headers.get("Host") or "", "site": os.environ.get("SITE_URL") or "", "vaults": vaults})
 
     def _update_user(self):

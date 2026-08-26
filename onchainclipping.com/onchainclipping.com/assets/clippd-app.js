@@ -181,15 +181,51 @@
         e.stopPropagation();
         const ca = btn.getAttribute("data-ca") || "";
         if (ca) navigator.clipboard.writeText(ca);
-        const action = btn.querySelector(".camp-ca-action");
-        if (action) {
-          action.textContent = "Copied";
-          setTimeout(() => {
-            action.textContent = "Copy";
-          }, 1400);
-        }
+        flashCopied(btn, "Copied");
       });
     });
+  }
+
+  function flashCopied(btn, doneText) {
+    if (!btn) return;
+    const label = btn.querySelector("[data-copy-label]") || btn.querySelector(".camp-ca-action") || btn;
+    if (btn._copyPrev == null) btn._copyPrev = label.textContent;
+    btn.classList.add("copied");
+    label.textContent = doneText || "Copied";
+    clearTimeout(btn._copyT);
+    btn._copyT = setTimeout(() => {
+      btn.classList.remove("copied");
+      label.textContent = btn._copyPrev;
+    }, 1400);
+  }
+
+  function fieldHead(label, name) {
+    return `<div class="field-head"><span>${label}</span><span class="field-err" data-err="${esc(name)}" hidden></span></div>`;
+  }
+
+  function clearLaunchErrors() {
+    document.querySelectorAll("[data-err]").forEach((el) => {
+      el.textContent = "";
+      el.hidden = true;
+    });
+    document.querySelectorAll(".input-bad").forEach((el) => el.classList.remove("input-bad"));
+    const err = document.getElementById("launch-err");
+    if (err) err.textContent = "";
+  }
+
+  function setLaunchErrors(map) {
+    clearLaunchErrors();
+    Object.keys(map).forEach((name) => {
+      const el = document.querySelector("[data-err='" + name + "']");
+      if (el) {
+        el.textContent = map[name];
+        el.hidden = false;
+      }
+      const input = document.querySelector("[name='" + name + "']");
+      if (input) input.classList.add("input-bad");
+    });
+    const first = document.querySelector(".input-bad");
+    if (first) first.focus();
   }
 
   function tokenMark(c, size) {
@@ -426,7 +462,8 @@
     d.brief = val("brief");
     ["budget_usd", "rate_per_1k_usd", "ugc_rate_per_1k_usd", "viral_bonus_usd", "min_views", "duration_days"].forEach((k) => {
       const el = document.querySelector("[name='" + k + "']");
-      if (el && el.value !== "") d[k] = Number(el.value);
+      if (!el) return;
+      d[k] = el.value === "" ? "" : Number(el.value);
     });
   }
 
@@ -463,8 +500,8 @@
         </div>
       </div>
       <div class="grid grid-2">
-        <div class="field"><label>Ticker *</label><input class="input" name="ticker" placeholder="$COIN" value="${esc(d.ticker)}"></div>
-        <div class="field"><label>Project name *</label><input class="input" name="name" placeholder="Your coin" value="${esc(d.name)}"></div>
+        <div class="field">${fieldHead("Ticker *", "ticker")}<input class="input" name="ticker" placeholder="$COIN" value="${esc(d.ticker)}"></div>
+        <div class="field">${fieldHead("Project name *", "name")}<input class="input" name="name" placeholder="Your coin" value="${esc(d.name)}"></div>
       </div>
       <div class="field"><label>Contract address</label><input class="input mono" name="contract" placeholder="Your token CA" value="${esc(d.contract)}"></div>
       <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#coin" value="${esc(d.hashtag)}"></div>`;
@@ -472,9 +509,9 @@
     const step2 = `
       <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $10 USD.</p>
       <div class="grid grid-2">
-        <div class="field"><label>Total budget (USD)</label><input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $10. Quoted live in SOL.</p></div>
+        <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="10" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $10. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
-        <div class="field"><label>Pay per 1,000 views (USD)</label><input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" placeholder="e.g. 2.00" value="${esc(d.rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">What you pay a clipper from this vault for every 1,000 verified views. $2.00 → 10,000 views = $20.</p></div>
+        <div class="field">${fieldHead("Pay per 1,000 views (USD)", "rate_per_1k_usd")}<input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" placeholder="e.g. 2.00" value="${esc(d.rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">What you pay a clipper from this vault for every 1,000 verified views. $2.00 → 10,000 views = $20.</p></div>
         <div class="field"><label>UGC / face-cam pay per 1K (optional)</label><input class="input" name="ugc_rate_per_1k_usd" type="number" min="0" step="0.05" placeholder="Optional extra" value="${esc(d.ugc_rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">Only if you want to pay more for face-on-camera clips.</p></div>
         <div class="field"><label>Viral bonus USD (optional)</label><input class="input" name="viral_bonus_usd" type="number" min="0" step="1" placeholder="Optional" value="${esc(d.viral_bonus_usd)}"></div>
         <div class="field"><label>Duration (days)</label><input class="input" name="duration_days" type="number" min="1" value="${esc(d.duration_days)}"></div>
@@ -604,18 +641,17 @@
     if (next) {
       next.onclick = () => {
         readLaunchFields();
-        const err = document.getElementById("launch-err");
-        if (d.step === 1 && (!String(d.ticker).trim() || !String(d.name).trim())) {
-          if (err) err.textContent = "Ticker and project name are required.";
-          return;
+        if (d.step === 1) {
+          const errs = {};
+          if (!String(d.ticker).trim()) errs.ticker = "Required";
+          if (!String(d.name).trim()) errs.name = "Required";
+          if (Object.keys(errs).length) return setLaunchErrors(errs);
         }
-        if (d.step === 2 && Number(d.budget_usd) < 10) {
-          if (err) err.textContent = "Minimum budget is $10 USD.";
-          return;
-        }
-        if (d.step === 2 && !(Number(d.rate_per_1k_usd) > 0)) {
-          if (err) err.textContent = "Set how much you pay per 1,000 views.";
-          return;
+        if (d.step === 2) {
+          const errs = {};
+          if (!(Number(d.budget_usd) >= 10)) errs.budget_usd = "Minimum is $10";
+          if (!(Number(d.rate_per_1k_usd) > 0)) errs.rate_per_1k_usd = "Required";
+          if (Object.keys(errs).length) return setLaunchErrors(errs);
         }
         d.step += 1;
         pageLaunch();
@@ -630,11 +666,11 @@
       try {
         const w = walletOrThrow();
         if (Number(d.budget_usd) < 10) {
-          errEl.textContent = "Minimum budget is $10 USD.";
+          setLaunchErrors({ budget_usd: "Minimum is $10" });
           return;
         }
         if (!(Number(d.rate_per_1k_usd) > 0)) {
-          errEl.textContent = "Set how much you pay per 1,000 views.";
+          setLaunchErrors({ rate_per_1k_usd: "Required" });
           return;
         }
         const created = await api("/api/campaigns", {
@@ -737,9 +773,9 @@
             <p class="meta" id="fund-price">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL · live</p>
             <div class="label" style="margin-top:1.25rem">This campaign’s vault</div>
             <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
-            <div class="mk-row" style="margin-top:1rem">
-              <button class="btn btn-ghost btn-sm" id="copy-addr" type="button">Copy address</button>
-              ${c.vault_address ? `<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+            <div class="fund-actions">
+              <button class="btn btn-primary fund-btn" id="copy-addr" type="button"><span data-copy-label>Copy address</span></button>
+              ${c.vault_address ? `<a class="btn btn-primary fund-btn" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
               <span id="fund-onchain-badge" class="fund-badge ${onchain ? "on" : "off"}">${onchain ? "On Solana" : "Opening on Solana"}</span>
             </div>
             <div class="fund-ledger">
@@ -777,7 +813,12 @@
     );
 
     const copyAddr = document.getElementById("copy-addr");
-    if (copyAddr && c.vault_address) copyAddr.onclick = () => navigator.clipboard.writeText(c.vault_address);
+    if (copyAddr && c.vault_address) {
+      copyAddr.onclick = () => {
+        navigator.clipboard.writeText(c.vault_address);
+        flashCopied(copyAddr);
+      };
+    }
     if (!funded) {
       startQuotePoll(() => c.budget_usd);
       fundTimer = setTimeout(() => {
@@ -785,6 +826,126 @@
       }, 5000);
     } else {
       stopQuotePoll();
+    }
+  }
+
+  async function pageOps() {
+    document.title = "Clippd ops";
+    const res = await fetch("/api/ops/vaults", { credentials: "same-origin" });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 503) {
+      paint(
+        "",
+        `
+        <div class="page-head">
+          <div>
+            <div class="mk-kicker">Operator</div>
+            <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
+            <p class="page-sub">Private keys for every campaign. Password only. This page is not in the public nav.</p>
+          </div>
+        </div>
+        <form id="ops-form" class="card" style="max-width:28rem">
+          <div class="field">
+            ${fieldHead("Password", "password")}
+            <input class="input" name="password" type="password" autocomplete="current-password" autofocus>
+          </div>
+          <button class="btn btn-primary" type="submit">Unlock</button>
+          <p class="err" id="ops-err">${res.status === 503 ? esc(data.error || "") : ""}</p>
+        </form>`
+      );
+      const form = document.getElementById("ops-form");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const err = document.getElementById("ops-err");
+        if (err) err.textContent = "";
+        try {
+          const r = await fetch("/api/ops/unlock", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: form.password.value }),
+          });
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(body.error || "Could not unlock");
+          pageOps();
+        } catch (ex) {
+          if (err) err.textContent = ex.message;
+        }
+      });
+      return;
+    }
+    if (!res.ok) {
+      paint("", `<h1 class="mk-h1">Could not load vaults.</h1><p class="err">${esc(data.error || "")}</p>`);
+      return;
+    }
+    const vaults = data.vaults || [];
+    paint(
+      "",
+      `
+      <div class="page-head">
+        <div>
+          <div class="mk-kicker">Operator</div>
+          <h1 class="page-title" style="margin-top:.5rem">Campaign vaults</h1>
+          <p class="page-sub">Every campaign’s public and private key. Only this password unlocks it.</p>
+        </div>
+        <button type="button" class="btn-pill" id="ops-lock">Lock</button>
+      </div>
+      ${
+        !vaults.length
+          ? `<div class="empty card">No campaign vaults yet.</div>`
+          : vaults
+              .map(
+                (v) => `
+        <article class="card ops-card">
+          <div>
+            <div style="font-weight:800">${esc(v.ticker || "")} · ${esc(v.name || "")}</div>
+            <p class="meta" style="margin:.35rem 0 0">Campaign ID ${esc(v.campaign_id || "")} · ${esc(v.status || "")}${v.vault_onchain ? " · on Solana" : ""}</p>
+          </div>
+          <div class="field" style="margin-top:1rem;margin-bottom:.6rem">
+            <div class="field-head"><span>Public key</span></div>
+            <div class="addr">${esc(v.address || "")}</div>
+          </div>
+          <div class="fund-actions">
+            <button type="button" class="btn btn-primary fund-btn" data-copy="${esc(v.address || "")}"><span data-copy-label>Copy public</span></button>
+            ${v.address ? `<a class="btn btn-primary fund-btn" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(v.address)}">Solscan</a>` : ""}
+          </div>
+          <div class="field" style="margin-top:1.1rem;margin-bottom:.6rem">
+            <div class="field-head"><span>Private key</span></div>
+            <div class="addr ops-secret" data-secret="${esc(v.secret_base58 || "")}">••••••••••••••••</div>
+          </div>
+          <div class="fund-actions">
+            <button type="button" class="btn btn-ghost fund-btn" data-reveal>Show</button>
+            <button type="button" class="btn btn-primary fund-btn" data-copy="${esc(v.secret_base58 || "")}"><span data-copy-label>Copy private</span></button>
+          </div>
+        </article>`
+              )
+              .join("")
+      }`
+    );
+    document.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.onclick = () => {
+        const val = btn.getAttribute("data-copy") || "";
+        if (val) navigator.clipboard.writeText(val);
+        flashCopied(btn);
+      };
+    });
+    document.querySelectorAll("[data-reveal]").forEach((btn) => {
+      btn.onclick = () => {
+        const card = btn.closest(".ops-card");
+        const el = card && card.querySelector(".ops-secret");
+        if (!el) return;
+        const secret = el.getAttribute("data-secret") || "";
+        const on = el.classList.toggle("show");
+        el.textContent = on ? secret : "••••••••••••••••";
+        btn.textContent = on ? "Hide" : "Show";
+      };
+    });
+    const lock = document.getElementById("ops-lock");
+    if (lock) {
+      lock.onclick = async () => {
+        await fetch("/api/ops/lock", { method: "POST", credentials: "same-origin" });
+        pageOps();
+      };
     }
   }
 
@@ -897,6 +1058,7 @@
     if (m) return pageLaunch(m[1]);
     m = p.match(/^\/u\/([^/]+)$/);
     if (m) return pageProfile(decodeURIComponent(m[1]));
+    if (p === "/ops") return pageOps();
     location.replace("/");
   }
 

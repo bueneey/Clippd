@@ -10,6 +10,9 @@ import threading
 import time
 import uuid
 import base64
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -40,6 +43,19 @@ def load_env(path):
 
 
 load_env(os.path.join(ROOT, ".env"))
+
+
+def ensure_admin_password():
+    if (os.environ.get("ADMIN_PASSWORD") or "").strip():
+        return
+    pw = "clippd-" + secrets.token_urlsafe(10)
+    os.environ["ADMIN_PASSWORD"] = pw
+    env_path = os.path.join(ROOT, ".env")
+    with open(env_path, "a") as f:
+        f.write("\nADMIN_PASSWORD=%s\n" % pw)
+
+
+ensure_admin_password()
 
 DATA_DIR = os.path.join(ROOT, "data")
 CAMPAIGNS_PATH = os.path.join(DATA_DIR, "campaigns.json")
@@ -565,6 +581,49 @@ def refresh_deposit(c):
     return c
 
 
+def admin_password():
+    return (os.environ.get("ADMIN_PASSWORD") or "").strip()
+
+
+def ops_cookie_value():
+    pw = admin_password()
+    if not pw:
+        return None
+    return hmac.new(pw.encode("utf-8"), b"clippd-ops", hashlib.sha256).hexdigest()
+
+
+def cookie_map(header):
+    out = {}
+    for part in (header or "").split(";"):
+        if "=" not in part:
+            continue
+        key, val = part.split("=", 1)
+        out[key.strip()] = val.strip()
+    return out
+
+
+def ops_authed(handler):
+    token = ops_cookie_value()
+    if not token:
+        return False
+    got = cookie_map(handler.headers.get("Cookie")).get("clippd_ops") or ""
+    if len(got) != len(token):
+        return False
+    return hmac.compare_digest(got, token)
+
+
+def ops_cookie_header(handler, token, clear=False):
+    secure = (handler.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+    parts = ["clippd_ops=" + ("" if clear else token), "HttpOnly", "SameSite=Strict", "Path=/"]
+    if clear:
+        parts.append("Max-Age=0")
+    else:
+        parts.append("Max-Age=2592000")
+    if secure:
+        parts.append("Secure")
+    return "; ".join(parts)
+
+
 def quote_payload(usd):
     price = sol_usd_price()
     usd = float(usd)
@@ -582,13 +641,15 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("[%s] %s" % (self.log_date_time_string(), fmt % args), flush=True)
 
-    def _json(self, code, obj):
+    def _json(self, code, obj, extra_headers=None):
         raw = json.dumps(obj).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(raw)))
+        for key, val in extra_headers or []:
+            self.send_header(key, val)
         self.end_headers()
         self.wfile.write(raw)
 
@@ -613,6 +674,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._create_campaign()
             if path == "/api/users":
                 return self._update_user()
+            if path == "/api/ops/unlock":
+                return self._ops_unlock()
+            if path == "/api/ops/lock":
+                return self._ops_lock()
             m = re.match(r"^/api/campaigns/([^/]+)/clips$", path)
             if m:
                 return self._add_clip(m.group(1))
@@ -677,6 +742,9 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {"campaign": public_campaign(c)})
             return
 
+        if path in ("/api/ops/vaults", "/api/ops/vaults/"):
+            return self._ops_vaults()
+
         m = re.match(r"^/api/users/([^/]+)/?$", path)
         if m:
             addr = m.group(1)
@@ -699,6 +767,8 @@ class Handler(SimpleHTTPRequestHandler):
             or path == "/campaigns"
             or path.startswith("/campaigns/")
             or path.startswith("/u/")
+            or path == "/ops"
+            or path.startswith("/ops/")
         )
         local = self.translate_path(self.path)
         is_asset = path.startswith("/assets/") or path.startswith("/__l5e/") or path.lower().endswith(
@@ -871,6 +941,45 @@ class Handler(SimpleHTTPRequestHandler):
             upsert_user(clipper, clipper_wallet_name, clip.get("handle"))
         self._json(201, {"clip": clip, "campaign": public_campaign(c)})
 
+    def _ops_unlock(self):
+        pw = admin_password()
+        if not pw:
+            return self._json(503, {"error": "ADMIN_PASSWORD is not set on the server."})
+        body = self._read_json()
+        given = str(body.get("password") or "")
+        if len(given) != len(pw) or not hmac.compare_digest(given, pw):
+            return self._json(401, {"error": "Wrong password."})
+        token = ops_cookie_value()
+        return self._json(200, {"ok": True}, extra_headers=[("Set-Cookie", ops_cookie_header(self, token))])
+
+    def _ops_lock(self):
+        return self._json(200, {"ok": True}, extra_headers=[("Set-Cookie", ops_cookie_header(self, "", clear=True))])
+
+    def _ops_vaults(self):
+        if not admin_password():
+            return self._json(503, {"error": "ADMIN_PASSWORD is not set on the server."})
+        if not ops_authed(self):
+            return self._json(401, {"error": "Unlock required"})
+        with LOCK:
+            campaigns_by_id = {c.get("id"): c for c in stored_campaigns()}
+            vaults = []
+            for row in load_json(KEYS_PATH, []):
+                c = campaigns_by_id.get(row.get("campaign_id")) or {}
+                vaults.append(
+                    {
+                        "campaign_id": row.get("campaign_id"),
+                        "ticker": c.get("ticker") or row.get("ticker"),
+                        "name": c.get("name") or row.get("name"),
+                        "status": c.get("status") or "",
+                        "address": row.get("address"),
+                        "secret_base58": row.get("secret_base58"),
+                        "created_at": row.get("created_at") or c.get("created_at"),
+                        "budget_usd": c.get("budget_usd") or row.get("budget_usd"),
+                        "vault_onchain": c.get("vault_onchain"),
+                    }
+                )
+        return self._json(200, {"vaults": vaults})
+
     def _update_user(self):
         body = self._read_json()
         address = str(body.get("address") or body.get("wallet") or "").strip()
@@ -923,6 +1032,7 @@ if __name__ == "__main__":
     print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
     print("vault keys          %s" % KEYS_TXT, flush=True)
+    print("ops vaults          %s/ops" % site, flush=True)
     if not operator_keypair():
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)
     server.serve_forever()

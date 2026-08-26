@@ -198,7 +198,30 @@ a.card { color: inherit; text-decoration: none; display: block; }
 .label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 
 form .field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .9rem; }
-form label { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+form label, .field-head {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+.field-err {
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-transform: none;
+  text-align: right;
+}
+.field-err[hidden] { display: none !important; }
+.input-bad { border-color: #b91c1c !important; }
 input, textarea, select {
   width: 100%;
   border: 1px solid var(--hairline);
@@ -588,3 +611,29 @@ textarea { min-height: 6.5rem; resize: vertical; }
 }
 .fund-badge.on { color: #40bd85; border: 1px solid #40bd8555; }
 .fund-badge.off { color: #f87171; border: 1px solid #f8717155; }
+.fund-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+.fund-btn {
+  min-width: 9.25rem;
+  border-radius: .85rem;
+  padding: .7rem 1.15rem;
+  font-size: 13px;
+  font-weight: 800;
+}
+.fund-btn.copied,
+.camp-ca.copied {
+  animation: fund-copied .35s ease;
+}
+.btn-primary.fund-btn.copied { background: #123528; }
+@keyframes fund-copied {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.ops-card { margin-top: 1rem; }
+.ops-secret { word-break: break-all; }

@@ -75,6 +75,12 @@ body { font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, sans-s
 }
 .mk-links a:hover { color: var(--foreground); }
 .mk-links a.on { color: var(--foreground); background: var(--surface); }
+.mk-nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
 .mk-x {
   display: inline-flex;
   align-items: center;

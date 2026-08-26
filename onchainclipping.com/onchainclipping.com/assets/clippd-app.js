@@ -996,6 +996,7 @@
           <p class="page-sub">Live campaigns only. Awaiting-deposit vaults stay off this page.</p>
           <p class="meta">Vaults on <strong>${esc(location.host)}</strong>. Localhost and getclippd.fun do not share keys.</p>
         </div>
+        <button type="button" class="btn-pill" id="ops-clear">Remove all campaigns</button>
         <button type="button" class="btn-pill" id="ops-lock">Lock</button>
       </div>
       ${
@@ -1048,6 +1049,20 @@
         btn.textContent = on ? "Hide" : "Show";
       };
     });
+    const clear = document.getElementById("ops-clear");
+    if (clear) {
+      clear.onclick = async () => {
+        if (!confirm("Remove every campaign from this host? Profiles stay. Vault keys for those campaigns are deleted.")) return;
+        try {
+          const r = await fetch("/api/ops/clear-campaigns", { method: "POST", credentials: "same-origin" });
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(body.error || "Could not clear campaigns");
+          pageOps();
+        } catch (ex) {
+          alert(ex.message);
+        }
+      };
+    }
     const lock = document.getElementById("ops-lock");
     if (lock) {
       lock.onclick = async () => {

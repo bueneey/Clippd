@@ -986,6 +986,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._ops_unlock()
             if path == "/api/ops/lock":
                 return self._ops_lock()
+            if path == "/api/ops/clear-campaigns":
+                return self._ops_clear_campaigns()
             m = re.match(r"^/api/campaigns/([^/]+)/clips$", path)
             if m:
                 return self._add_clip(m.group(1))
@@ -1277,6 +1279,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _ops_lock(self):
         return self._json(200, {"ok": True}, extra_headers=[("Set-Cookie", ops_cookie_header(self, "", clear=True))])
+
+    def _ops_clear_campaigns(self):
+        if not admin_password():
+            return self._json(503, {"error": "ADMIN_PASSWORD is not set on the server."})
+        if not ops_authed(self):
+            return self._json(401, {"error": "Unlock required"})
+        with LOCK:
+            n = len([c for c in stored_campaigns() if c.get("id") != DEMO_ID and not c.get("demo")])
+            save_json(CAMPAIGNS_PATH, [])
+            save_json(KEYS_PATH, [])
+            write_keys_txt([], [])
+        return self._json(200, {"ok": True, "removed": n})
 
     def _ops_vaults(self):
         if not admin_password():

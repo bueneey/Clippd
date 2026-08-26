@@ -38,8 +38,30 @@ def load_env(path):
                 continue
             key, val = line.split("=", 1)
             key, val = key.strip(), val.strip().strip('"').strip("'")
+            # Railway (and other hosts) inject PORT. A local .env PORT=5173 would
+            # make the process listen where the proxy is not sending traffic.
+            if key in ("PORT", "HOST"):
+                continue
             if key and key not in os.environ:
                 os.environ[key] = val
+
+
+def on_railway():
+    return bool(
+        os.environ.get("RAILWAY_ENVIRONMENT")
+        or os.environ.get("RAILWAY_ENVIRONMENT_ID")
+        or os.environ.get("RAILWAY_PROJECT_ID")
+    )
+
+
+def listen_bind():
+    host = "0.0.0.0"
+    raw = (os.environ.get("PORT") or "").strip()
+    if raw:
+        return host, int(raw)
+    if on_railway():
+        return host, 8080
+    return host, 5173
 
 
 load_env(os.path.join(ROOT, ".env"))
@@ -1056,13 +1078,13 @@ def embed_info(url, platform):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT") or 5173)
-    host = os.environ.get("HOST") or "0.0.0.0"
+    host, port = listen_bind()
     site = (os.environ.get("SITE_URL") or "https://getclippd.fun").rstrip("/")
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer((host, port), Handler)
     print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
+    print("env PORT            %s" % (os.environ.get("PORT") or "(not set)"), flush=True)
     print("vault keys          %s" % KEYS_TXT, flush=True)
     print("ops vaults          %s/ops" % site, flush=True)
     if not operator_keypair():

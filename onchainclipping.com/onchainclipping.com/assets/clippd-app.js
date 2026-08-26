@@ -10,7 +10,7 @@
     hashtag: "",
     image: "",
     brief: "",
-    budget_usd: 100,
+    budget_usd: "",
     rate_per_1k_usd: "",
     ugc_rate_per_1k_usd: "",
     viral_bonus_usd: "",
@@ -60,6 +60,11 @@
     if (!q) return;
     const send = document.getElementById("quote-sol") || document.getElementById("fund-send");
     const meta = document.getElementById("quote-meta") || document.getElementById("fund-price");
+    if (q.empty) {
+      if (send && document.getElementById("quote-sol")) send.textContent = "—";
+      if (meta && document.getElementById("quote-meta")) meta.textContent = "Enter a budget to quote SOL.";
+      return;
+    }
     if (q.error) {
       if (meta) meta.textContent = q.error;
       return;
@@ -80,6 +85,7 @@
     }
   }
   async function fetchQuote(usdVal) {
+    if (usdVal === "" || usdVal == null || String(usdVal).trim() === "") return { empty: true };
     const n = Number(usdVal);
     if (!(n >= MIN_BUDGET_USD)) return { error: "Minimum budget is $" + MIN_BUDGET_USD + " USD" };
     return api("/api/quote?usd=" + n);
@@ -95,7 +101,7 @@
       }
     };
     tick();
-    quoteTimer = setInterval(tick, 10000);
+    quoteTimer = setInterval(tick, 15000);
   }
   function when(iso) {
     if (!iso) return "";
@@ -131,14 +137,47 @@
   }
 
   function wrap(active, inner) {
-    return `<div class="mk-wrap">${nav(active)}<main class="mk-main">${inner}</main>
+    return `<div class="mk-wrap" id="mk-shell">${nav(active)}<main class="mk-main" id="mk-main">${inner}</main>
       <footer class="mk-foot">
         <a href="https://x.com/clippdpump" target="_blank" rel="noopener">X · @clippdpump</a>
       </footer></div>`;
   }
+  function syncNav(active) {
+    const links = document.querySelector(".mk-links");
+    if (!links) return;
+    const w = window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get();
+    let you = links.querySelector("[data-you]");
+    if (w && w.address) {
+      if (!you) {
+        you = document.createElement("a");
+        you.setAttribute("data-nav", "");
+        you.setAttribute("data-you", "");
+        you.textContent = "You";
+        links.appendChild(you);
+      }
+      you.href = "/u/" + w.address;
+    } else if (you) {
+      you.remove();
+      you = null;
+    }
+    links.querySelectorAll("a").forEach((a) => {
+      const href = (a.getAttribute("href") || "").replace(/\/+$/, "") || "/";
+      const on =
+        (active === "campaigns" && href === "/campaigns") ||
+        (active === "launch" && href === "/launch") ||
+        (active === "profile" && a.hasAttribute("data-you"));
+      a.classList.toggle("on", on);
+    });
+  }
   function paint(active, inner) {
-    root.innerHTML = wrap(active, inner);
-    if (window.ClippdWallet && window.ClippdWallet.refresh) window.ClippdWallet.refresh();
+    if (!document.getElementById("mk-shell")) {
+      root.innerHTML = wrap(active, "");
+      if (window.ClippdWallet && window.ClippdWallet.refresh) window.ClippdWallet.refresh();
+    } else {
+      syncNav(active);
+    }
+    const main = document.getElementById("mk-main");
+    if (main) main.innerHTML = inner;
   }
   function walletOrThrow() {
     const w = window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get();
@@ -213,7 +252,7 @@
 
   function avatarMarkup(url, sizeClass) {
     const src = url || "/assets/clippdpfp.png";
-    return `<img class="avatar ${sizeClass || ""}" src="${esc(src)}" alt="">`;
+    return `<img class="avatar ${sizeClass || ""}" src="${esc(src)}" alt="" decoding="async" width="48" height="48">`;
   }
 
   function bindCopyCa() {
@@ -273,7 +312,7 @@
   function tokenMark(c, size) {
     const n = size || 44;
     if (c.image) {
-      return `<img src="${esc(c.image)}" alt="${esc(c.ticker)}" style="width:${n}px;height:${n}px;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px ${esc(c.color || "#40bd85")}55">`;
+      return `<img src="${esc(c.image)}" alt="${esc(c.ticker)}" width="${n}" height="${n}" decoding="async" style="width:${n}px;height:${n}px;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px ${esc(c.color || "#40bd85")}55">`;
     }
     const letters = String(c.ticker || "$").replace("$", "").slice(0, 3).toUpperCase() || "TKR";
     const color = c.color || "#40bd85";
@@ -329,6 +368,7 @@
   }
 
   async function pageCampaigns() {
+    paint("campaigns", `<p class="mk-lead">Loading campaigns…</p>`);
     let campaigns = [];
     let err = "";
     try {
@@ -340,7 +380,7 @@
     const live = shown.filter((c) => c.status === "live" || c.demo);
     const pool = shown.reduce((s, c) => s + Number(c.budget_usd || 0), 0);
     const paid = shown.reduce((s, c) => s + Number(c.spent_usd || 0), 0);
-    const clips = shown.reduce((s, c) => s + ((c.submissions && c.submissions.length) || 0), 0);
+    const clips = shown.reduce((s, c) => s + Number(c.clip_count || (c.submissions && c.submissions.length) || 0), 0);
     paint(
       "campaigns",
       `
@@ -529,12 +569,7 @@
   async function pageLaunch(payId) {
     if (payId) return pageFund(payId);
     const d = launchDraft;
-    let quote = { usd: d.budget_usd, sol: 0, sol_price_usd: 0 };
-    try {
-      quote = await api("/api/quote?usd=" + Math.max(MIN_BUDGET_USD, Number(d.budget_usd) || MIN_BUDGET_USD));
-    } catch (e) {
-      quote = { usd: d.budget_usd, sol: 0, sol_price_usd: 0, error: e.message || "Could not fetch SOL price" };
-    }
+    let quote = { empty: Number(d.budget_usd) < MIN_BUDGET_USD, usd: d.budget_usd, sol: 0, sol_price_usd: 0 };
 
     const step1 = `
       <div class="field"><label>Token image</label>
@@ -553,7 +588,7 @@
     const step2 = `
       <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $${MIN_BUDGET_USD} USD.</p>
       <div class="grid grid-2">
-        <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="${MIN_BUDGET_USD}" step="1" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $${MIN_BUDGET_USD}. Quoted live in SOL.</p></div>
+        <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="${MIN_BUDGET_USD}" step="1" placeholder="0" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $${MIN_BUDGET_USD}. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
         <div class="field">${fieldHead("Pay per 1,000 views (USD)", "rate_per_1k_usd")}<input class="input" name="rate_per_1k_usd" type="number" min="0.01" step="0.05" placeholder="e.g. 2.00" value="${esc(d.rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">What you pay a clipper from this vault for every 1,000 verified views. $2.00 → 10,000 views = $20.</p></div>
         <div class="field"><label>UGC / face-cam pay per 1K (optional)</label><input class="input" name="ugc_rate_per_1k_usd" type="number" min="0" step="0.05" placeholder="Optional extra" value="${esc(d.ugc_rate_per_1k_usd)}"><p class="meta" style="margin:.35rem 0 0">Only if you want to pay more for face-on-camera clips.</p></div>
@@ -612,16 +647,16 @@
               </div>
             </div>
             <div class="grid grid-2" style="margin-top:1rem;gap:.5rem">
-              <div class="mini-stat"><div class="label">Budget</div><div style="font-weight:800;margin-top:.2rem">${usd(d.budget_usd)}</div></div>
+              <div class="mini-stat"><div class="label">Budget</div><div style="font-weight:800;margin-top:.2rem">${d.budget_usd === "" || d.budget_usd == null ? "—" : usd(d.budget_usd)}</div></div>
               <div class="mini-stat"><div class="label">Your rate</div><div style="font-weight:800;margin-top:.2rem">${d.rate_per_1k_usd === "" || d.rate_per_1k_usd == null ? "—" : "$" + esc(d.rate_per_1k_usd) + "/1K"}</div></div>
             </div>
             <div class="plat-row" style="margin-top:1rem">${d.platforms.map((p) => platIcon(p, 16)).join("")}</div>
           </div>
           <div class="preview-card" style="margin-top:1rem;background:linear-gradient(180deg, color-mix(in oklab, var(--primary) 10%, #fff), #fff)">
             <div class="label" style="color:var(--primary)">Campaign vault</div>
-            <div class="stat" id="quote-sol" style="margin-top:.5rem">${quote.sol ? sol(quote.sol) : "…"}</div>
-            <p class="meta" id="quote-meta">${quote.error ? esc(quote.error) : quote.sol_price_usd ? usd(quote.sol_price_usd) + " / SOL · " + usd(quote.usd) + " budget · live" : "Fetching price…"}</p>
-            <p class="meta">USD budget quoted in SOL. Price refreshes every 10 seconds.</p>
+            <div class="stat" id="quote-sol" style="margin-top:.5rem">${quote.sol ? sol(quote.sol) : "—"}</div>
+            <p class="meta" id="quote-meta">${quote.error ? esc(quote.error) : quote.sol_price_usd ? usd(quote.sol_price_usd) + " / SOL · " + usd(quote.usd) + " budget · live" : "Enter a budget to quote SOL."}</p>
+            <p class="meta">USD budget quoted in SOL. Price refreshes every 15 seconds.</p>
           </div>
         </aside>
       </div>`
@@ -847,7 +882,7 @@
             <div class="label" style="margin-top:1.25rem">How funding works</div>
             <ul class="fund-steps">
               <li>Clippd creates one Solana vault per campaign. This campaign ID is locked to the address on the left. A different campaign gets a different vault.</li>
-              <li>You send the live quoted SOL to that vault. The USD→SOL amount refreshes every 10 seconds.</li>
+              <li>You send the live quoted SOL to that vault. The USD→SOL amount refreshes every 15 seconds.</li>
               <li>Every few seconds Clippd reads the vault on Solana mainnet and checks the exact amount against the live quote.</li>
               <li>When counted SOL covers the current quote, the campaign goes live and clippers can submit.</li>
             </ul>

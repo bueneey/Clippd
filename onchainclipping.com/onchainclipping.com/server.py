@@ -356,14 +356,27 @@ def operator_keypair():
             return None
 
 
-def account_onchain(address):
+ACCOUNT_CACHE = {}
+ACCOUNT_TTL = 8
+
+
+def account_onchain(address, fresh=False):
+    now = time.time()
+    hit = ACCOUNT_CACHE.get(address)
+    if not fresh and hit and now - hit[0] < ACCOUNT_TTL:
+        return hit[1], hit[2]
     try:
         result = rpc("getAccountInfo", [address, {"encoding": "base64", "commitment": "confirmed"}])
         val = result.get("value") if isinstance(result, dict) else None
         if not val:
-            return False, 0
-        return True, int(val.get("lamports") or 0)
+            exists, lamports = False, 0
+        else:
+            exists, lamports = True, int(val.get("lamports") or 0)
+        ACCOUNT_CACHE[address] = (now, exists, lamports)
+        return exists, lamports
     except Exception:
+        if hit:
+            return hit[1], hit[2]
         return False, 0
 
 
@@ -371,7 +384,7 @@ RENT_FALLBACK = 890880
 
 
 def open_vault_onchain(address):
-    exists, lamports = account_onchain(address)
+    exists, lamports = account_onchain(address, fresh=True)
     if exists:
         return {"vault_onchain": True, "seed_lamports": 0, "open_signature": None}
     payer = operator_keypair()
@@ -401,7 +414,7 @@ def open_vault_onchain(address):
         )
         for _ in range(8):
             time.sleep(0.4)
-            exists, lamports = account_onchain(address)
+            exists, lamports = account_onchain(address, fresh=True)
             if exists:
                 break
         return {
@@ -414,7 +427,7 @@ def open_vault_onchain(address):
         return {"vault_onchain": False, "seed_lamports": 0, "open_signature": None, "open_error": str(e)}
 
 
-def http_json(url, payload=None, timeout=12):
+def http_json(url, payload=None, timeout=6):
     body = None
     headers = {"Accept": "application/json", "User-Agent": "Clippd/1.0"}
     if payload is not None:
@@ -427,7 +440,7 @@ def http_json(url, payload=None, timeout=12):
 
 def sol_usd_price():
     now = time.time()
-    if QUOTE_CACHE["price"] and now - QUOTE_CACHE["at"] < 8:
+    if QUOTE_CACHE["price"] and now - QUOTE_CACHE["at"] < 20:
         return QUOTE_CACHE["price"]
     price = None
     try:
@@ -451,7 +464,7 @@ def rpc(method, params):
     last = None
     for url in RPCS:
         try:
-            data = http_json(url, payload, timeout=10)
+            data = http_json(url, payload, timeout=6)
             if data.get("error"):
                 last = data["error"]
                 continue
@@ -463,10 +476,8 @@ def rpc(method, params):
 
 
 def get_balance_lamports(address):
-    result = rpc("getBalance", [address, {"commitment": "confirmed"}])
-    if isinstance(result, dict):
-        return int(result.get("value") or 0)
-    return int(result or 0)
+    _exists, lamports = account_onchain(address)
+    return lamports
 
 
 def latest_sig(address):
@@ -484,16 +495,18 @@ def slugify(ticker):
     return s or "campaign"
 
 
-def public_campaign(c, include_submissions=True):
+def public_campaign(c, include_submissions=True, users=None):
     out = dict(c)
     for k in ("secret_base58", "secret_json", "secret", "open_error"):
         out.pop(k, None)
     if not include_submissions:
         out.pop("submissions", None)
+        out["clip_count"] = len(c.get("submissions") or [])
     if out.get("demo") or out.get("id") == DEMO_ID:
         out["vault_address"] = None
         out["vault_demo"] = True
-    users = load_users()
+    if users is None:
+        users = load_users()
     creator = users.get(out.get("creator_wallet") or "") or {}
     if creator.get("handle"):
         out["creator_handle"] = creator["handle"]
@@ -712,7 +725,7 @@ def profile_for(address):
     launched = []
     for c in list_campaigns():
         if c.get("creator_wallet") == address:
-            launched.append(public_campaign(c, include_submissions=False))
+            launched.append(public_campaign(c, include_submissions=False, users=users))
         for clip in c.get("submissions") or []:
             if clip.get("clipper_wallet") != address:
                 continue
@@ -754,25 +767,11 @@ def stored_campaigns():
 
 def find_campaign(cid):
     rows = stored_campaigns()
-    found = next((x for x in rows if x.get("id") == cid), None)
-    if found:
-        if cid == DEMO_ID:
-            found["demo"] = True
-        return found
-    if cid == DEMO_ID:
-        return demo_campaign()
-    return None
+    return next((x for x in rows if x.get("id") == cid), None)
 
 
 def list_campaigns():
-    rows = [c for c in stored_campaigns() if c.get("id") != DEMO_ID]
-    demo = next((x for x in stored_campaigns() if x.get("id") == DEMO_ID), None)
-    if demo:
-        demo["demo"] = True
-        rows.insert(0, demo)
-    else:
-        rows.insert(0, demo_campaign())
-    return rows
+    return [c for c in stored_campaigns() if not c.get("demo") and c.get("id") != DEMO_ID]
 
 
 def refresh_quote(c):
@@ -789,15 +788,24 @@ def refresh_quote(c):
     return c
 
 
-def refresh_deposit(c):
+def deposit_fresh(c, max_age=12):
+    at = parse_iso(c.get("balance_checked_at"))
+    if not at:
+        return False
+    return (datetime.now(timezone.utc) - at).total_seconds() < max_age
+
+
+def refresh_deposit(c, force=False, open_account=False, max_age=12):
     if c.get("demo"):
         return c
     if not c.get("vault_address"):
         return c
+    if not force and deposit_fresh(c, max_age):
+        return c
     if c.get("status") != "live":
         refresh_quote(c)
     onchain, lamports = account_onchain(c["vault_address"])
-    if not onchain and c.get("status") != "live" and not c.get("open_signature"):
+    if not onchain and open_account and c.get("status") != "live" and not c.get("open_signature"):
         opened = open_vault_onchain(c["vault_address"])
         if opened.get("open_signature"):
             c["open_signature"] = opened["open_signature"]
@@ -805,7 +813,7 @@ def refresh_deposit(c):
             c["seed_lamports"] = int(opened["seed_lamports"])
         onchain = bool(opened.get("vault_onchain"))
         if onchain:
-            onchain, lamports = account_onchain(c["vault_address"])
+            onchain, lamports = account_onchain(c["vault_address"], fresh=True)
     if not onchain:
         try:
             lamports = get_balance_lamports(c["vault_address"])
@@ -828,68 +836,6 @@ def refresh_deposit(c):
         c["funded_at"] = utcnow()
         c["funding_signature"] = latest_sig(c["vault_address"])
     return c
-
-
-def ensure_test_campaign():
-    """Put $TEST back if Railway/local data lost it. Keep the original vault address."""
-    try:
-        with LOCK:
-            rows = stored_campaigns()
-            if any(
-                c.get("id") == TEST_ID
-                or (c.get("ticker") or "").upper() == "$TEST"
-                or c.get("vault_address") == TEST_VAULT
-                for c in rows
-            ):
-                return
-            try:
-                q = quote_payload(1)
-            except Exception:
-                q = {"sol": 0.0103, "lamports": 10300000, "sol_price_usd": 97.0}
-            campaign = {
-                "id": TEST_ID,
-                "ticker": "$TEST",
-                "name": "Test Coin",
-                "contract": "",
-                "hashtag": "#TEST",
-                "brief": "Clip the coin.",
-                "budget_usd": 1.0,
-                "rate_per_1k_usd": 1.0,
-                "ugc_rate_per_1k_usd": None,
-                "viral_bonus_usd": None,
-                "min_views": 1000,
-                "duration_days": 7,
-                "platforms": ["tiktok", "instagram"],
-                "status": "awaiting_deposit",
-                "vault_address": TEST_VAULT,
-                "vault_onchain": True,
-                "seed_lamports": 0,
-                "expected_sol": q["sol"],
-                "expected_lamports": q["lamports"],
-                "sol_price_usd": q["sol_price_usd"],
-                "received_sol": 0,
-                "received_lamports": 0,
-                "net_received_sol": 0,
-                "remaining_sol": q["sol"],
-                "remaining_lamports": q["lamports"],
-                "created_at": utcnow(),
-                "funded_at": None,
-                "funding_signature": None,
-                "spent_usd": 0,
-                "color": "#40bd85",
-                "creator_wallet": "9HduN1ee6LJXzZXevZ3FQHBPmGPJhsQPjQGLKMepJRRU",
-                "creator_wallet_name": "phantom",
-                "submissions": [],
-            }
-            try:
-                refresh_deposit(campaign)
-            except Exception:
-                pass
-            rows.insert(0, campaign)
-            save_json(CAMPAIGNS_PATH, rows)
-            print("restored $TEST vault %s" % TEST_VAULT, flush=True)
-    except Exception as e:
-        print("could not restore $TEST: %s" % e, flush=True)
 
 
 def admin_password():
@@ -961,8 +907,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         for key, val in extra_headers or []:
             self.send_header(key, val)
+        self._skip_asset_cache = True
         self.end_headers()
         self.wfile.write(raw)
+
+    def end_headers(self):
+        if not getattr(self, "_skip_asset_cache", False):
+            p = urlparse(self.path or "").path
+            if p.startswith("/assets/"):
+                self.send_header("Cache-Control", "public, max-age=86400")
+        self._skip_asset_cache = False
+        SimpleHTTPRequestHandler.end_headers(self)
 
     def _read_json(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -1028,23 +983,11 @@ class Handler(SimpleHTTPRequestHandler):
 
         if path == "/api/campaigns":
             with LOCK:
-                campaigns = stored_campaigns()
-                changed = False
-                for c in campaigns:
-                    if c.get("demo") or c.get("id") == DEMO_ID:
-                        continue
-                    try:
-                        refresh_deposit(c)
-                        changed = True
-                    except Exception:
-                        pass
-                if changed:
-                    save_json(CAMPAIGNS_PATH, campaigns)
-                    write_keys_txt(load_json(KEYS_PATH, []), campaigns)
+                users = load_users()
                 out = [
-                    public_campaign(c)
+                    public_campaign(c, include_submissions=False, users=users)
                     for c in list_campaigns()
-                    if c.get("demo") or c.get("id") == DEMO_ID or c.get("status") in ("live", "awaiting_deposit")
+                    if c.get("status") in ("live", "awaiting_deposit")
                 ]
             self._json(200, {"campaigns": out})
             return
@@ -1058,14 +1001,17 @@ class Handler(SimpleHTTPRequestHandler):
                     self._json(404, {"error": "campaign not found"})
                     return
                 if not c.get("demo") and c.get("id") != DEMO_ID:
+                    prev = (c.get("status"), c.get("received_lamports"), c.get("expected_lamports"))
                     try:
-                        refresh_deposit(c)
-                        rows = stored_campaigns()
-                        for i, row in enumerate(rows):
-                            if row.get("id") == cid:
-                                rows[i] = c
-                        save_json(CAMPAIGNS_PATH, rows)
-                        write_keys_txt(load_json(KEYS_PATH, []), rows)
+                        refresh_deposit(c, max_age=6)
+                        now = (c.get("status"), c.get("received_lamports"), c.get("expected_lamports"))
+                        if now != prev:
+                            rows = stored_campaigns()
+                            for i, row in enumerate(rows):
+                                if row.get("id") == cid:
+                                    rows[i] = c
+                            save_json(CAMPAIGNS_PATH, rows)
+                            write_keys_txt(load_json(KEYS_PATH, []), rows)
                     except Exception:
                         pass
             self._json(200, {"campaign": public_campaign(c)})
@@ -1241,7 +1187,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(404, {"error": "campaign not found"})
             if not c.get("demo"):
                 try:
-                    refresh_deposit(c)
+                    refresh_deposit(c, force=True)
                 except Exception:
                     pass
             if c.get("status") != "live":
@@ -1367,6 +1313,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", types.get(ext, "application/octet-stream"))
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "public, max-age=3600")
+        self._skip_asset_cache = True
         self.end_headers()
         self.wfile.write(raw)
 
@@ -1419,5 +1366,4 @@ if __name__ == "__main__":
         print("OPERATOR_SECRET     not set — vaults stay off Solscan until the first SOL lands", flush=True)
     if not admin_password():
         print("ADMIN_PASSWORD      not set — /ops stays locked", flush=True)
-    ensure_test_campaign()
     server.serve_forever()

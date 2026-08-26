@@ -170,9 +170,50 @@
     return addr.slice(0, 4) + "…" + addr.slice(-6);
   }
 
-  function who(addr, label) {
+  function who(addr, label, from) {
     if (!addr) return esc(label || "");
-    return `<a class="who" href="/u/${esc(addr)}" data-nav>${esc(label || shortCa(addr))}</a>`;
+    let href = "/u/" + encodeURIComponent(addr);
+    const safe = safeFrom(from);
+    if (safe) href += "?from=" + encodeURIComponent(safe);
+    return `<a class="who" href="${esc(href)}" data-nav>${esc(label || shortCa(addr))}</a>`;
+  }
+
+  function safeFrom(raw) {
+    const s = String(raw || "");
+    if (/^\/campaigns\/[A-Za-z0-9_-]+$/.test(s) || /^\/launch\/[A-Za-z0-9_-]+$/.test(s)) return s;
+    return "";
+  }
+
+  function solscanUrl(addr) {
+    return "https://solscan.io/account/" + addr;
+  }
+
+  function vaultAddressBlock(address) {
+    if (!address) return "";
+    const href = solscanUrl(address);
+    return `<a class="addr addr-link" href="${esc(href)}" target="_blank" rel="noopener" title="View on Solscan" style="margin-top:.6rem">${esc(address)}</a>
+          <div class="fund-actions" style="margin-top:.65rem">
+            <a class="btn fund-btn" target="_blank" rel="noopener" href="${esc(href)}">View on Solscan</a>
+          </div>`;
+  }
+
+  function normalizeHandle(raw) {
+    return String(raw || "").trim().replace(/^@+/, "");
+  }
+
+  function handleHint(raw) {
+    const h = normalizeHandle(raw);
+    if (!h) return "3–20 characters. Start with a letter. Letters, numbers, and underscores only.";
+    if (h.length < 3) return "At least 3 characters.";
+    if (h.length > 20) return "20 characters max.";
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(h)) return "Start with a letter. Only letters, numbers, and underscores.";
+    if (/__/.test(h)) return "No double underscores.";
+    return "";
+  }
+
+  function avatarMarkup(url, sizeClass) {
+    const src = url || "/assets/clippdpfp.png";
+    return `<img class="avatar ${sizeClass || ""}" src="${esc(src)}" alt="">`;
   }
 
   function bindCopyCa() {
@@ -360,19 +401,19 @@
         <div style="text-align:right">
           <div class="label">Budget · vault</div>
           <div class="stat">${usd(c.budget_usd)}</div>
-          <div class="meta" style="justify-content:flex-end">${esc(sol(c.received_sol || 0))} received</div>
+          <div class="meta" style="text-align:right">${esc(sol(c.received_sol || 0))} received</div>
         </div>
       </div>
       <div class="grid grid-2" style="margin-top:1.5rem">
         <div class="card">
           <div class="label">This campaign’s terms</div>
-          ${c.rate_per_1k_usd ? `<div class="stat">${usd(c.rate_per_1k_usd)} <span style="font-size:13px;font-weight:600;color:var(--muted)">/ 1K views · set by the creator</span></div>` : `<p class="meta">Creator did not publish a per-1K rate.</p>`}
+          ${c.rate_per_1k_usd ? `<div class="stat">${usd(c.rate_per_1k_usd)} <span class="stat-note">/ 1K views · set by the creator</span></div>` : `<p class="meta">Creator did not publish a per-1K rate.</p>`}
           ${c.ugc_rate_per_1k_usd ? `<p class="meta">UGC / face-cam ${usd(c.ugc_rate_per_1k_usd)} / 1K</p>` : ""}
           ${c.viral_bonus_usd ? `<p class="meta">Viral bonus ${usd(c.viral_bonus_usd)}</p>` : ""}
           <p class="meta">Min ${esc(String(c.min_views))} views · ${esc(String(c.duration_days))} days</p>
           <div class="plat-row" style="margin-top:.75rem">${(c.platforms || []).map((p) => platIcon(p, 18)).join("")}</div>
           ${c.hashtag ? `<p class="meta">${esc(c.hashtag)}</p>` : ""}
-          ${c.creator_wallet ? `<p class="meta">Creator ${who(c.creator_wallet, c.creator_handle || shortCa(c.creator_wallet))}</p>` : ""}
+          ${c.creator_wallet ? `<p class="meta">Creator ${who(c.creator_wallet, c.creator_handle || shortCa(c.creator_wallet), "/campaigns/" + c.id)}</p>` : ""}
           ${
             c.contract
               ? `<button type="button" class="camp-ca" data-ca="${esc(c.contract)}" style="margin-top:.85rem"><span class="camp-ca-left"><span class="camp-ca-k">CA</span> <span class="mono camp-ca-addr">${esc(shortCa(c.contract))}</span></span><span class="camp-ca-action">Copy</span></button>`
@@ -385,7 +426,7 @@
           ${
             c.vault_demo || !c.vault_address
               ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, Clippd creates a Solana vault for that campaign only. The creator sends SOL there. When a clip’s views verify, that vault pays the clipper.</p>`
-              : `<div class="addr" style="margin-top:.6rem">${esc(c.vault_address)}</div>
+              : `${vaultAddressBlock(c.vault_address)}
           <p class="meta">Campaign ID ${esc(c.id)} · vault for ${esc(c.ticker)} only</p>
           <p class="meta">${c.vault_onchain ? "On Solana" : "Opening on Solana"} · balance ${esc(sol(c.received_sol || 0))} · counted ${esc(sol(c.net_received_sol != null ? c.net_received_sol : c.received_sol || 0))}</p>
           <p class="meta">Need ${esc(sol(c.expected_sol))} · quoted at ${usd(c.sol_price_usd)} / SOL</p>
@@ -419,7 +460,7 @@
               <div class="clip-top">
                 <div>
                   <div class="badge badge-live">${esc(clip.platform)}</div>
-                  <div class="meta">${clip.clipper_wallet ? who(clip.clipper_wallet, clip.handle || shortCa(clip.clipper_wallet)) : esc(clip.handle || "")} · ${esc(when(clip.created_at))}</div>
+                  <div class="meta">${clip.clipper_wallet ? who(clip.clipper_wallet, clip.clipper_username || clip.handle || shortCa(clip.clipper_wallet), "/campaigns/" + id) : esc(clip.handle || "")} · ${esc(when(clip.created_at))}</div>
                 </div>
                 <a class="btn btn-ghost btn-sm" href="${esc(clip.url)}" target="_blank" rel="noopener">Open post</a>
               </div>
@@ -775,10 +816,10 @@
             <div class="stat" id="fund-send">${esc(sol(c.expected_sol))}</div>
             <p class="meta" id="fund-price">${usd(c.budget_usd)} at ${usd(c.sol_price_usd)} / SOL · live</p>
             <div class="label" style="margin-top:1.25rem">This campaign’s vault</div>
-            <div class="addr" id="vault-addr">${esc(c.vault_address)}</div>
+            <a class="addr addr-link" id="vault-addr" href="${esc(solscanUrl(c.vault_address))}" target="_blank" rel="noopener" title="View on Solscan">${esc(c.vault_address)}</a>
             <div class="fund-actions">
               <button class="btn fund-btn" id="copy-addr" type="button"><span data-copy-label>Copy address</span></button>
-              ${c.vault_address ? `<a class="btn fund-btn" target="_blank" rel="noopener" href="https://solscan.io/account/${esc(c.vault_address)}">Solscan</a>` : ""}
+              ${c.vault_address ? `<a class="btn fund-btn" target="_blank" rel="noopener" href="${esc(solscanUrl(c.vault_address))}">View on Solscan</a>` : ""}
               <span id="fund-onchain-badge" class="fund-badge ${onchain ? "on" : "off"}">${onchain ? "On Solana" : "Opening on Solana"}</span>
             </div>
             <div class="fund-ledger">
@@ -969,31 +1010,63 @@
     const u = data.user;
     const me = window.ClippdWallet && window.ClippdWallet.get && window.ClippdWallet.get();
     const mine = me && me.address === u.address;
-    const handle = u.handle || "";
+    const handle = normalizeHandle(u.handle || "");
+    const bio = u.bio || "";
+    const avatar = u.avatar || "";
     const clips = data.clips || [];
     const camps = data.campaigns || [];
+    const backTo = safeFrom(new URLSearchParams(location.search).get("from"));
+    const title = handle ? "@" + handle : shortCa(u.address);
+    let pendingAvatar = "";
     paint(
       "profile",
       `
-      <div class="page-head">
-        <div>
-          <div class="mk-kicker">Clipper</div>
-          <h1 class="page-title" style="margin-top:.5rem">${esc(handle || shortCa(u.address))}</h1>
-          <p class="page-sub mono">${esc(u.address)}</p>
+      ${
+        backTo
+          ? `<a href="${esc(backTo)}" data-nav class="back-link">← Back to campaign</a>`
+          : `<a href="/campaigns" data-nav class="back-link">← Campaigns</a>`
+      }
+      <div class="page-head profile-hero" style="margin-top:.85rem">
+        <div class="profile-hero-main">
+          ${avatarMarkup(avatar, "lg")}
+          <div style="min-width:0">
+            <div class="mk-kicker">Clipper</div>
+            <h1 class="page-title" style="margin-top:.35rem">${esc(title)}</h1>
+            <p class="page-sub mono" style="margin-top:.4rem">${esc(u.address)}</p>
+            ${bio ? `<p class="profile-bio">${esc(bio)}</p>` : ""}
+          </div>
         </div>
-        ${mine ? `<button type="button" class="btn-pill" id="copy-profile">Copy wallet</button>` : ""}
+        <button type="button" class="btn-pill" id="copy-profile"><span data-copy-label>Copy wallet</span></button>
       </div>
       <div class="stat-strip">
         <div class="stat-cell"><div class="label">Clips submitted</div><div class="stat">${data.stats.clips}</div></div>
         <div class="stat-cell"><div class="label">Campaigns launched</div><div class="stat">${data.stats.campaigns}</div></div>
-        <div class="stat-cell"><div class="label">Wallet</div><div class="stat" style="font-size:1.05rem">${esc((u.wallet_name || "solana").toString())}</div></div>
       </div>
       ${
         mine
-          ? `<form id="handle-form" class="card" style="margin-top:1.5rem;display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
-              <div class="field" style="flex:1;min-width:180px;margin:0"><label>Display handle</label><input class="input" name="handle" placeholder="@yourhandle" value="${esc(handle)}"></div>
-              <button class="btn-pill go primary" type="submit">Save</button>
-              <div class="err" id="handle-err"></div>
+          ? `<form id="profile-form" class="card profile-edit" style="margin-top:1.5rem">
+              <div class="label">Your profile</div>
+              <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start;margin-top:1rem">
+                <label class="avatar-up">
+                  <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfp.png")}" alt="">
+                  <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+                  <span>Change photo</span>
+                </label>
+                <div style="flex:1;min-width:220px">
+                  <div class="field">
+                    ${fieldHead("Username", "handle")}
+                    <input class="input" name="handle" maxlength="20" placeholder="yourname" value="${esc(handle)}" autocomplete="username">
+                    <p class="handle-hint" id="handle-hint">${esc(handleHint(handle))}</p>
+                  </div>
+                  <div class="field" style="margin-bottom:0">
+                    ${fieldHead("Bio", "bio")}
+                    <textarea class="input" name="bio" maxlength="160" placeholder="What you clip, what you launch.">${esc(bio)}</textarea>
+                    <p class="handle-hint">160 characters max.</p>
+                  </div>
+                </div>
+              </div>
+              <button class="btn-pill go primary" type="submit" style="margin-top:1.1rem">Save profile</button>
+              <div class="err" id="profile-err"></div>
             </form>`
           : ""
       }
@@ -1026,22 +1099,61 @@
     );
     bindCopyCa();
     const copyBtn = document.getElementById("copy-profile");
-    if (copyBtn) copyBtn.onclick = () => navigator.clipboard.writeText(u.address);
-    const form = document.getElementById("handle-form");
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(u.address);
+        flashCopied(copyBtn);
+      };
+    }
+    const file = document.getElementById("avatar-file");
+    const preview = document.getElementById("avatar-preview");
+    if (file && preview) {
+      file.addEventListener("change", () => {
+        const f = file.files && file.files[0];
+        const errEl = document.getElementById("profile-err");
+        if (errEl) errEl.textContent = "";
+        if (!f) return;
+        if (f.size > 400 * 1024) {
+          if (errEl) errEl.textContent = "Photo must be under 400KB.";
+          file.value = "";
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          pendingAvatar = String(reader.result || "");
+          preview.src = pendingAvatar;
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+    const handleInput = document.querySelector("#profile-form [name='handle']");
+    const hint = document.getElementById("handle-hint");
+    if (handleInput && hint) {
+      handleInput.addEventListener("input", () => {
+        hint.textContent = handleHint(handleInput.value) || "Looks good.";
+      });
+    }
+    const form = document.getElementById("profile-form");
     if (form) {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const errEl = document.getElementById("handle-err");
+        const errEl = document.getElementById("profile-err");
         if (errEl) errEl.textContent = "";
+        const nextHandle = normalizeHandle(new FormData(form).get("handle"));
+        const hintText = handleHint(nextHandle);
+        if (nextHandle && hintText) {
+          if (errEl) errEl.textContent = hintText;
+          return;
+        }
         try {
-          await api("/api/users", {
-            method: "POST",
-            body: JSON.stringify({
-              address: u.address,
-              handle: new FormData(form).get("handle"),
-              wallet_name: me && me.wallet,
-            }),
-          });
+          const body = {
+            address: u.address,
+            handle: nextHandle,
+            bio: new FormData(form).get("bio"),
+            wallet_name: me && me.wallet,
+          };
+          if (pendingAvatar) body.avatar = pendingAvatar;
+          await api("/api/users", { method: "POST", body: JSON.stringify(body) });
           pageProfile(addr);
         } catch (ex) {
           if (errEl) errEl.textContent = ex.message;

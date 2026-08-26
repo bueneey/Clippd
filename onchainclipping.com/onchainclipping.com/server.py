@@ -99,6 +99,7 @@ def resolve_data_dir():
 
 def init_persistent_data():
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(os.path.join(DATA_DIR, "avatars"), exist_ok=True)
     blanks = {"campaigns.json": [], "users.json": {}, "vault-keys.json": []}
     for name, empty in blanks.items():
         dest = os.path.join(DATA_DIR, name)
@@ -118,6 +119,7 @@ CAMPAIGNS_PATH = os.path.join(DATA_DIR, "campaigns.json")
 USERS_PATH = os.path.join(DATA_DIR, "users.json")
 KEYS_PATH = os.path.join(DATA_DIR, "vault-keys.json")
 KEYS_TXT = os.path.join(DATA_DIR, "VAULT_KEYS.txt")
+AVATARS_DIR = os.path.join(DATA_DIR, "avatars")
 os.chdir(ROOT)
 try:
     init_persistent_data()
@@ -489,6 +491,19 @@ def public_campaign(c, include_submissions=True):
     if out.get("demo") or out.get("id") == DEMO_ID:
         out["vault_address"] = None
         out["vault_demo"] = True
+    users = load_users()
+    creator = users.get(out.get("creator_wallet") or "") or {}
+    if creator.get("handle"):
+        out["creator_handle"] = creator["handle"]
+    if include_submissions and out.get("submissions"):
+        clips = []
+        for clip in out["submissions"]:
+            row = dict(clip)
+            u = users.get(row.get("clipper_wallet") or "") or {}
+            if u.get("handle"):
+                row["clipper_username"] = u["handle"]
+            clips.append(row)
+        out["submissions"] = clips
     return out
 
 
@@ -499,7 +514,114 @@ def load_users():
     return data if isinstance(data, dict) else {}
 
 
-def upsert_user(address, wallet_name="", handle=""):
+HANDLE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,19}$")
+RESERVED_HANDLES = frozenset(
+    {
+        "admin",
+        "ops",
+        "clippd",
+        "clippdpump",
+        "you",
+        "me",
+        "wallet",
+        "solana",
+        "phantom",
+        "solflare",
+        "metamask",
+        "campaign",
+        "campaigns",
+        "launch",
+        "home",
+        "api",
+        "null",
+        "undefined",
+        "support",
+        "help",
+        "official",
+        "team",
+        "clipper",
+        "creator",
+        "mod",
+        "moderator",
+        "ansem",
+    }
+)
+AVATAR_MAX = 400 * 1024
+
+
+def normalize_handle(raw):
+    s = str(raw or "").strip()
+    if s.startswith("@"):
+        s = s[1:].strip()
+    return s
+
+
+def validate_handle(raw, except_address=""):
+    handle = normalize_handle(raw)
+    if not handle:
+        return ""
+    if not HANDLE_RE.match(handle):
+        raise ValueError("Username must be 3–20 characters, start with a letter, and use only letters, numbers, and underscores.")
+    if "__" in handle:
+        raise ValueError("Username cannot contain double underscores.")
+    if handle.lower() in RESERVED_HANDLES:
+        raise ValueError("That username is reserved.")
+    except_address = str(except_address or "")
+    for addr, u in load_users().items():
+        if addr == except_address:
+            continue
+        existing = normalize_handle((u or {}).get("handle") or "")
+        if existing and existing.lower() == handle.lower():
+            raise ValueError("That username is taken.")
+    return handle
+
+
+def sanitize_bio(raw):
+    text = re.sub(r"\s+", " ", str(raw or "")).strip()
+    if len(text) > 160:
+        raise ValueError("Bio must be 160 characters or less.")
+    return text
+
+
+def save_avatar(address, data_url):
+    if not data_url:
+        return None
+    if not isinstance(data_url, str) or not data_url.startswith("data:image/"):
+        raise ValueError("Upload a PNG, JPG, WEBP, or GIF.")
+    header, sep, b64 = data_url.partition(",")
+    if not sep or ";base64" not in header:
+        raise ValueError("Upload a PNG, JPG, WEBP, or GIF.")
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        raise ValueError("Could not read that photo.")
+    if len(raw) > AVATAR_MAX:
+        raise ValueError("Photo must be under 400KB.")
+    ext = None
+    if raw.startswith(b"\x89PNG"):
+        ext = "png"
+    elif raw.startswith(b"\xff\xd8\xff"):
+        ext = "jpg"
+    elif raw[:6] in (b"GIF87a", b"GIF89a"):
+        ext = "gif"
+    elif len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        ext = "webp"
+    else:
+        raise ValueError("Upload a PNG, JPG, WEBP, or GIF.")
+    os.makedirs(AVATARS_DIR, exist_ok=True)
+    for name in os.listdir(AVATARS_DIR):
+        if name.startswith(address + "."):
+            try:
+                os.remove(os.path.join(AVATARS_DIR, name))
+            except OSError:
+                pass
+    filename = "%s.%s" % (address, ext)
+    with open(os.path.join(AVATARS_DIR, filename), "wb") as f:
+        f.write(raw)
+    return "/avatars/" + filename
+
+
+def upsert_user(address, wallet_name="", handle=None, bio=None, avatar=None):
     address = str(address or "").strip()
     if not valid_solana_address(address):
         return None
@@ -507,14 +629,21 @@ def upsert_user(address, wallet_name="", handle=""):
     row = users.get(address) or {
         "address": address,
         "handle": "",
+        "bio": "",
+        "avatar": "",
         "wallet_name": "",
         "created_at": utcnow(),
     }
     if wallet_name:
         row["wallet_name"] = str(wallet_name).strip()
-    cleaned = str(handle or "").strip()
-    if cleaned:
-        row["handle"] = cleaned
+    if handle is not None:
+        row["handle"] = validate_handle(handle, address)
+    if bio is not None:
+        row["bio"] = sanitize_bio(bio)
+    if avatar:
+        row["avatar"] = save_avatar(address, avatar)
+    row.setdefault("bio", "")
+    row.setdefault("avatar", "")
     row["last_seen"] = utcnow()
     users[address] = row
     save_json(USERS_PATH, users)
@@ -524,8 +653,10 @@ def upsert_user(address, wallet_name="", handle=""):
 def profile_for(address):
     address = str(address or "").strip()
     users = load_users()
-    user = dict(users.get(address) or {"address": address, "handle": "", "wallet_name": ""})
+    user = dict(users.get(address) or {"address": address, "handle": "", "wallet_name": "", "bio": "", "avatar": ""})
     user["address"] = address
+    user.setdefault("bio", "")
+    user.setdefault("avatar", "")
     clips = []
     launched = []
     for c in list_campaigns():
@@ -550,8 +681,13 @@ def profile_for(address):
                     "campaign_color": c.get("color"),
                 }
             )
-            if clip.get("handle") and not user.get("handle"):
-                user["handle"] = clip.get("handle")
+            if not user.get("handle"):
+                try:
+                    got = validate_handle(clip.get("handle") or "", address)
+                    if got:
+                        user["handle"] = got
+                except ValueError:
+                    pass
     clips.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return {
         "user": user,
@@ -751,6 +887,9 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
+
+        if path.startswith("/avatars/"):
+            return self._serve_avatar(path)
 
         if path in ("/health", "/healthz", "/health/", "/healthz/"):
             self._json(
@@ -1015,7 +1154,7 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 rows[idx] = c
             save_json(CAMPAIGNS_PATH, rows)
-            upsert_user(clipper, clipper_wallet_name, clip.get("handle"))
+            upsert_user(clipper, clipper_wallet_name)
         self._json(201, {"clip": clip, "campaign": public_campaign(c)})
 
     def _ops_unlock(self):
@@ -1086,8 +1225,37 @@ class Handler(SimpleHTTPRequestHandler):
         if not valid_solana_address(address):
             return self._json(400, {"error": "Connect a Solana wallet first."})
         with LOCK:
-            user = upsert_user(address, body.get("wallet_name") or "", body.get("handle") or "")
+            try:
+                user = upsert_user(
+                    address,
+                    body.get("wallet_name") or "",
+                    handle=body.get("handle") if "handle" in body else None,
+                    bio=body.get("bio") if "bio" in body else None,
+                    avatar=body.get("avatar"),
+                )
+            except ValueError as e:
+                return self._json(400, {"error": str(e)})
             self._json(200, profile_for(address) if user else {"error": "Could not save profile"})
+
+    def _serve_avatar(self, path):
+        name = os.path.basename(path)
+        if not re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}\.(png|jpe?g|webp|gif)$", name):
+            self.send_error(404, "File not found")
+            return
+        full = os.path.join(AVATARS_DIR, name)
+        if not os.path.isfile(full):
+            self.send_error(404, "File not found")
+            return
+        ext = name.rsplit(".", 1)[-1].lower()
+        types = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}
+        with open(full, "rb") as f:
+            raw = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", types.get(ext, "application/octet-stream"))
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "public, max-age=3600")
+        self.end_headers()
+        self.wfile.write(raw)
 
 
 def detect_platform(url):

@@ -4,6 +4,7 @@ data/VAULT_KEYS.txt
 data/vault-keys.json
 **/data/VAULT_KEYS.txt
 **/data/vault-keys.json
+**/data/avatars/
 __pycache__/
 *.pyc
 .DS_Store

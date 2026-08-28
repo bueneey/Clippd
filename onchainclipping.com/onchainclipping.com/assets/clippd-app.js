@@ -119,7 +119,7 @@
     return `
       <header class="mk-nav">
         <div class="mk-nav-inner">
-          <a class="mk-brand" href="/"><img src="/assets/clippdpfp.png" alt="Clippd" width="36" height="36"/>Clippd</a>
+          <a class="mk-brand" href="/"><img src="/assets/clipdpfp.png" alt="Clipd" width="36" height="36"/>Clipd</a>
           <div class="mk-sep"></div>
           <nav class="mk-links">
             <a href="/">Home</a>
@@ -133,7 +133,7 @@
           </nav>
           <div class="mk-nav-right">
             <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
-            <a class="mk-x" href="https://x.com/clippdpump" target="_blank" rel="noopener" aria-label="Clippd on X">
+            <a class="mk-x" href="https://x.com/clipdonpump" target="_blank" rel="noopener" aria-label="Clipd on X">
               <img src="/assets/platforms/x.svg" alt="" width="14" height="14"/>
             </a>
             <span data-wallet-slot></span>
@@ -144,10 +144,11 @@
   }
 
   function wrap(active, inner) {
-    return `<div class="mk-wrap" id="mk-shell">${nav(active)}<main class="mk-main" id="mk-main">${inner}</main>
+    return `<div class="mk-wrap" id="mk-shell">${nav(active)}
+      <main class="mk-main" id="mk-main">${inner}</main>
       <footer class="mk-foot">
         <button type="button" class="ca-chip" data-ca-chip data-ca="..." title="Copy contract address"><span class="ca-k">CA:</span> <span data-ca-text>…</span></button>
-        <a href="https://x.com/clippdpump" target="_blank" rel="noopener">X · @clippdpump</a>
+        <a href="https://x.com/clipdonpump" target="_blank" rel="noopener">X · @clipdonpump</a>
       </footer></div>`;
   }
   function syncNav(active) {
@@ -321,10 +322,10 @@
   function tokenMark(c, size) {
     const n = size || 44;
     if (c.image) {
-      return `<img src="${esc(c.image)}" alt="${esc(c.ticker)}" width="${n}" height="${n}" decoding="async" style="width:${n}px;height:${n}px;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px ${esc(c.color || "#40bd85")}55">`;
+      return `<img src="${esc(c.image)}" alt="${esc(c.ticker)}" width="${n}" height="${n}" decoding="async" style="width:${n}px;height:${n}px;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px ${esc(c.color || "#60cb89")}55">`;
     }
     const letters = String(c.ticker || "$").replace("$", "").slice(0, 3).toUpperCase() || "TKR";
-    const color = c.color || "#40bd85";
+    const color = c.color || "#60cb89";
     return `<div style="width:${n}px;height:${n}px;flex-shrink:0;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:${esc(color)}18;color:${esc(color)};box-shadow:inset 0 0 0 1px ${esc(color)}55">${esc(letters)}</div>`;
   }
 
@@ -481,7 +482,7 @@
           <div class="label">Campaign vault</div>
           ${
             c.vault_demo || !c.vault_address
-              ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, Clippd creates a Solana vault for that campaign only. The creator sends SOL there. When a clip’s views verify, that vault pays the clipper.</p>`
+              ? `<p class="meta" style="margin-top:.6rem;line-height:1.55">This is a demo campaign, so there is no on-chain wallet.<br/><br/>On a real campaign, Clipd creates a Solana vault for that campaign only. The creator sends SOL there. When a clip’s views verify, that vault pays the clipper.</p>`
               : `${vaultAddressBlock(c.vault_address)}
           <p class="meta">vault for ${esc(c.ticker)} only</p>
           ${c.status !== "live" ? `<p class="err" style="margin-top:1rem">This campaign is not live until the counted SOL covers the live quote.</p>` : `<p class="ok" style="margin-top:1rem">Vault funded. Submit a clip below.</p>`}`
@@ -600,7 +601,7 @@
       <div class="field"><label>Campaign hashtag</label><input class="input" name="hashtag" placeholder="#coin" value="${esc(d.hashtag)}"></div>`;
 
     const step2 = `
-      <p class="meta" style="margin:0 0 1rem">Clippd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $${MIN_BUDGET_USD} USD.</p>
+      <p class="meta" style="margin:0 0 1rem">Clipd has no rate card. Budget, payout, bonuses, and platforms are all yours. Minimum budget is $${MIN_BUDGET_USD} USD.</p>
       <div class="grid grid-2">
         <div class="field">${fieldHead("Total budget (USD)", "budget_usd")}<input class="input" name="budget_usd" type="number" min="${MIN_BUDGET_USD}" step="1" placeholder="0" value="${esc(d.budget_usd)}"><p class="meta" style="margin:.35rem 0 0">Floor is $${MIN_BUDGET_USD}. Quoted live in SOL.</p></div>
         <div class="field"><label>Min views to qualify</label><input class="input" name="min_views" type="number" min="0" step="100" value="${esc(d.min_views)}"></div>
@@ -622,7 +623,7 @@
       <div class="field"><label>Rules &amp; requirements</label>
         <textarea class="input" name="brief" rows="8" placeholder="• Post must include ${esc(d.hashtag || "#hashtag")}\n• Original edits only\n• No AI voice-over\n• Payout after ${esc(String(d.min_views))} views">${esc(d.brief)}</textarea>
       </div>
-      <div class="warn">On launch Clippd creates a real Solana vault for this campaign and saves it against this campaign ID. You send the quoted SOL to that address.</div>`;
+      <div class="warn">On launch Clipd creates a real Solana vault for this campaign and saves it against this campaign ID. You send the quoted SOL to that address.</div>`;
 
     const previewTick = d.ticker ? (d.ticker.startsWith("$") ? d.ticker.toUpperCase() : "$" + d.ticker.toUpperCase()) : "$TICKER";
 
@@ -633,7 +634,7 @@
         <div>
           <div class="mk-kicker">Campaigns</div>
           <h1 class="page-title" style="margin-top:.5rem">Launch a campaign</h1>
-          <p class="page-sub">You set every term. Clippd creates a Solana vault for this campaign and goes live when the SOL lands.</p>
+          <p class="page-sub">You set every term. Clipd creates a Solana vault for this campaign and goes live when the SOL lands.</p>
         </div>
       </div>
       <div class="launch-grid">
@@ -654,7 +655,7 @@
           <div class="preview-card">
             <div class="label">Preview</div>
             <div style="margin-top:1rem;display:flex;align-items:flex-start;gap:.75rem">
-              ${tokenMark({ ticker: previewTick, name: d.name, image: d.image, color: "#40bd85" }, 44)}
+              ${tokenMark({ ticker: previewTick, name: d.name, image: d.image, color: "#60cb89" }, 44)}
               <div>
                 <div style="font-weight:800;font-size:14px">${esc(previewTick)}</div>
                 <div class="meta" style="margin:.2rem 0 0">${esc(d.name || "Project name")}</div>
@@ -860,7 +861,7 @@
         <a href="/campaigns" data-nav class="mk-kicker">← Campaigns</a>
         <div class="mk-kicker" style="margin-top:1rem">${funded ? "Live" : "Fund the vault"}</div>
         <h1 class="mk-h1">${esc(c.ticker)}</h1>
-        <p class="mk-lead">Send the quoted SOL to this campaign’s vault. Clippd checks the mainnet balance and the exact amount. When it matches, the campaign goes live.</p>
+        <p class="mk-lead">Send the quoted SOL to this campaign’s vault. Clipd checks the mainnet balance and the exact amount. When it matches, the campaign goes live.</p>
         <div class="grid grid-2" style="margin-top:1.5rem">
           <div class="card">
             <div class="label">Send this exact amount</div>
@@ -904,9 +905,9 @@
             }
             <div class="label" style="margin-top:1.25rem">How funding works</div>
             <ul class="fund-steps">
-              <li>Clippd creates one Solana vault per campaign. This campaign ID is locked to the address on the left. A different campaign gets a different vault.</li>
+              <li>Clipd creates one Solana vault per campaign. This campaign ID is locked to the address on the left. A different campaign gets a different vault.</li>
               <li>You send the live quoted SOL to that vault. The USD→SOL amount refreshes every 15 seconds.</li>
-              <li>Every few seconds Clippd reads the vault on Solana mainnet and checks the exact amount against the live quote.</li>
+              <li>Every few seconds Clipd reads the vault on Solana mainnet and checks the exact amount against the live quote.</li>
               <li>When counted SOL covers the current quote, the campaign goes live and clippers can submit.</li>
             </ul>
           </div>
@@ -939,7 +940,7 @@
   }
 
   async function pageOps() {
-    document.title = "Clippd ops";
+    document.title = "Clipd ops";
     const res = await fetch("/api/ops/vaults", { credentials: "same-origin" });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 503) {
@@ -1283,7 +1284,7 @@
     clearTimeout(fundTimer);
     stopQuotePoll();
     const p = path();
-    document.title = "Clippd";
+    document.title = "Clipd";
     if (p === "/campaigns") return pageCampaigns();
     let m = p.match(/^\/campaigns\/([^/]+)$/);
     if (m) return pageCampaign(m[1]);

@@ -171,7 +171,7 @@
       return "Could not reach " + kind + ". Unlock the extension and try again.";
     }
     if (/forbidden|origin|unauthorized/i.test(msg)) {
-      return kind + " blocked this site. Open the wallet and approve Clippd.";
+      return kind + " blocked this site. Open the wallet and approve Clipd.";
     }
     return msg;
   }

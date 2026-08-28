@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Clippd marketplace server — campaigns, Solana vaults, deposit checks."""
+"""Clipd marketplace server — campaigns, Solana vaults, deposit checks."""
 from __future__ import print_function
 
 import json
@@ -176,12 +176,12 @@ def demo_campaign():
     x = "https://x.com/solana/status/1740000000000000000"
     return {
         "id": DEMO_ID,
-        "ticker": "$CLIPPD",
-        "name": "Clippd",
+        "ticker": "$CLIPD",
+        "name": "Clipd",
         "demo": True,
         "contract": "",
-        "hashtag": "#Clippd",
-        "brief": "Clip $CLIPPD. Original edits only — no straight reposts.",
+        "hashtag": "#Clipd",
+        "brief": "Clip $CLIPD. Original edits only — no straight reposts.",
         "budget_usd": 2000,
         "rate_per_1k_usd": 1.5,
         "ugc_rate_per_1k_usd": 3.5,
@@ -202,7 +202,7 @@ def demo_campaign():
         "funding_signature": None,
         "spent_usd": 742,
         "color": "#3B82F6",
-        "image": "/assets/clippdpfp.png",
+        "image": "/assets/clipdpfp.png",
         "submissions": [
             {
                 "id": "demo-tt-1",
@@ -306,7 +306,7 @@ def save_json(path, data):
 def write_keys_txt(keys, campaigns):
     campaigns_by_id = {c["id"]: c for c in campaigns}
     lines = [
-        "Clippd campaign vault keys",
+        "Clipd campaign vault keys",
         "KEEP THIS FILE SECRET.",
         "One campaign_id maps to exactly one Solana vault address.",
         "",
@@ -445,7 +445,7 @@ def open_vault_onchain(address):
 
 def http_json(url, payload=None, timeout=6):
     body = None
-    headers = {"Accept": "application/json", "User-Agent": "Clippd/1.0"}
+    headers = {"Accept": "application/json", "User-Agent": "Clipd/1.0"}
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -551,7 +551,8 @@ RESERVED_HANDLES = frozenset(
         "admin",
         "ops",
         "clippd",
-        "clippdpump",
+        "clipd",
+        "clipdonpump",
         "you",
         "me",
         "wallet",
@@ -1188,7 +1189,7 @@ class Handler(SimpleHTTPRequestHandler):
             "funded_at": None,
             "funding_signature": None,
             "spent_usd": 0,
-            "color": random.choice(["#40bd85", "#3B82F6", "#F59E0B", "#EC4899", "#8B5CF6"]),
+            "color": random.choice(["#60cb89", "#3B82F6", "#F59E0B", "#EC4899", "#8B5CF6"]),
             "image": (str(body.get("image") or "").strip()[:400000] or None),
             "creator_wallet": creator,
             "creator_wallet_name": creator_wallet_name,
@@ -1426,7 +1427,7 @@ if __name__ == "__main__":
     site = (os.environ.get("SITE_URL") or "https://getclippd.fun").rstrip("/")
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer((host, port), Handler)
-    print("Clippd marketplace   http://%s:%s" % (host, port), flush=True)
+    print("Clipd marketplace   http://%s:%s" % (host, port), flush=True)
     print("public site         %s" % site, flush=True)
     print("env PORT            %s" % (os.environ.get("PORT") or "(not set)"), flush=True)
     print("data dir            %s" % DATA_DIR, flush=True)

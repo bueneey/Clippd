@@ -852,55 +852,11 @@ a.addr-link:hover {
 .profile-edit .field { margin-bottom: .9rem; }
 .handle-hint { font-size: 11px; color: var(--muted); margin: .25rem 0 0; letter-spacing: 0; word-spacing: 0.04em; }
 
-/* Looping clip-board background — grain + drifting stripes, not a glow blob */
-html, body {
-  background: #15161b;
-}
 .min-h-screen,
 .mk-wrap,
 #app {
   position: relative;
   z-index: 1;
-}
-body::before,
-body::after {
-  content: "";
-  pointer-events: none;
-}
-body::before {
-  position: fixed;
-  inset: -40% -25%;
-  z-index: 0;
-  background:
-    repeating-linear-gradient(
-      112deg,
-      #15161b 0 26px,
-      rgba(96, 203, 137, 0.09) 26px 52px
-    );
-  animation: clippd-loop 22s linear infinite;
-}
-body::after {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.14;
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.22) 0,
-      rgba(255, 255, 255, 0.22) 1px,
-      transparent 1px,
-      transparent 5px
-    );
-  animation: clippd-scan 9s linear infinite;
-}
-@keyframes clippd-loop {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-72px, -36px, 0); }
-}
-@keyframes clippd-scan {
-  from { background-position: 0 0; }
-  to { background-position: 0 80px; }
 }
 
 .clip-frame {
@@ -1075,8 +1031,6 @@ body::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body::before,
-  body::after,
   .clip-frame-bar .rec i {
     animation: none;
   }

@@ -261,7 +261,7 @@
   }
 
   function avatarMarkup(url, sizeClass) {
-    const src = url || "/assets/clippdpfpusre.png";
+    const src = url || "/assets/userclippdpfpusre.png";
     return `<img class="avatar ${sizeClass || ""}" src="${esc(src)}" alt="" decoding="async" width="48" height="48">`;
   }
 
@@ -1147,7 +1147,7 @@
           <form id="profile-form" class="profile-edit" style="margin-top:1.1rem">
             <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start">
               <label class="avatar-up">
-                <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/clippdpfpusre.png")}" alt="">
+                <img class="avatar lg" id="avatar-preview" src="${esc(avatar || "/assets/userclippdpfpusre.png")}" alt="">
                 <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
                 <span>Change photo</span>
               </label>

@@ -736,7 +736,7 @@ def profile_for(address):
     user.setdefault("bio", "")
     user.setdefault("avatar", "")
     if not user.get("avatar"):
-        user["avatar"] = "/assets/clippdpfpusre.png"
+        user["avatar"] = "/assets/userclippdpfpusre.png"
     ok, until = handle_can_change(user)
     user["handle_locked"] = not ok
     user["handle_unlock_at"] = until
